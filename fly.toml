@@ -1,0 +1,26 @@
+# Salomon Earnings Desk (hackathon demo) — separate from the Salomon brain app.
+app = "salomon-earnings-desk"
+primary_region = "iad"
+
+[env]
+  TRUST_FLY_IP = "1"      # visitor IP from Fly-Client-IP (needs DNS-only, not CF-proxied)
+  PUBLIC_IDEAS = "0"      # no option contracts on the public page
+  DEMO_ENABLED = "1"      # "0" pauses the chat: fly secrets/env change, no code deploy
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"   # judges must never hit a cold start
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

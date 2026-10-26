@@ -1,0 +1,8 @@
+.env
+*.key
+*_key.txt
+node_modules/
+__pycache__/
+.venv/
+keys/
+*.jsonl

@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+<title>Salomon Earnings Desk</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --text:#eef2fb; --muted:#a8bad6;
+    --accent:#4f8cff; --accent2:#22c55e; --border:#243354; --user:#1d4ed8;
+    --danger:#fca5a5; color-scheme:dark;
+  }
+  @media (prefers-color-scheme: light){
+    :root{--bg:#f4f6fb;--panel:#ffffff;--text:#12203a;--muted:#4d5f83;
+      --border:#d7e0f0;--user:#2563eb;--danger:#b91c1c;color-scheme:light}
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.5;
+    -webkit-tap-highlight-color:transparent}
+  .wrap{max-width:860px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;
+    padding-left:max(16px,env(safe-area-inset-left,0px));
+    padding-right:max(16px,env(safe-area-inset-right,0px));
+    padding-top:16px;padding-bottom:8px}
+  header{padding:8px 2px 0}
+  h1{font-size:clamp(25px,6vw,38px);line-height:1.1;margin:0 0 8px;letter-spacing:-.02em;text-wrap:balance}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);margin:0;max-width:62ch}
+  .badge{display:inline-block;margin-top:12px;padding:5px 11px;border:1px solid var(--border);
+    border-radius:999px;background:var(--panel);color:var(--muted);font-size:13px;line-height:1.4}
+  .badge b{color:var(--accent2);font-weight:600}
+  #status{font-size:13px;color:var(--muted);margin-top:8px;min-height:20px}
+  .chips-label{font-size:13px;color:var(--muted);margin:18px 0 8px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--border);background:var(--panel);color:var(--text);
+    border-radius:999px;padding:10px 14px;cursor:pointer;font-size:14px;line-height:1.35;
+    min-height:44px;touch-action:manipulation;text-align:left}
+  .chip:hover{border-color:var(--accent)}
+  #chat{flex:1;display:flex;flex-direction:column;gap:12px;margin:16px 0 12px;min-height:120px}
+  .msg{padding:13px 15px;border-radius:16px;line-height:1.55;white-space:pre-wrap;
+    overflow-wrap:anywhere;max-width:92%;font-size:16px}
+  .msg.user{align-self:flex-end;background:var(--user);color:#fff;border-bottom-right-radius:4px}
+  .msg.bot{align-self:flex-start;background:var(--panel);border:1px solid var(--border);border-bottom-left-radius:4px}
+  .msg.error{border-color:var(--danger);color:var(--danger)}
+  .meta{font-size:12px;color:var(--muted);margin-top:8px;white-space:normal;line-height:1.5}
+  .msg.user .meta{color:#dbeafe}
+  .typing{color:var(--muted);font-style:italic}
+  form{display:flex;gap:8px;position:sticky;bottom:0;z-index:10;background:var(--bg);
+    padding-top:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+  .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  input{flex:1;min-width:0;min-height:52px;padding:13px 15px;border-radius:14px;
+    border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:16px}
+  button.send{min-height:52px;padding:13px 20px;border:0;border-radius:14px;background:var(--accent);
+    color:#fff;font-size:16px;font-weight:600;cursor:pointer;flex:0 0 auto;touch-action:manipulation}
+  button.send:disabled{opacity:.55;cursor:wait}
+  .chip:focus-visible,button.send:focus-visible,input:focus-visible{
+    outline:3px solid var(--accent);outline-offset:2px}
+  footer{color:var(--muted);font-size:12.5px;line-height:1.55;padding:2px 2px 10px}
+  .frozen{margin:16px 0 4px;padding:14px 16px;border:1px solid var(--border);border-radius:16px;background:var(--panel)}
+  .frozen h2{font-size:17px;margin:0 0 4px}
+  .fz-sub{margin:0 0 8px;color:var(--muted);font-size:14px}
+  .fz-score{margin:0 0 8px;font-weight:600}
+  .fz-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+  .fz-list li{display:flex;gap:8px;flex-wrap:wrap;font-size:14px;padding:6px 0;border-top:1px solid var(--border)}
+  .fz-list .tk{font-weight:700;min-width:58px}
+  .fz-list .dt{color:var(--muted);min-width:52px}
+  .fz-list .st{margin-left:auto;color:var(--muted)}
+  .fz-list .ok{color:var(--accent2);font-weight:700}
+  .fz-list .bad{color:var(--danger);font-weight:700}
+  .frozen details{margin-top:6px;font-size:14px}
+  .frozen summary{cursor:pointer;color:var(--accent);min-height:32px;padding:6px 0}
+  .fz-proof{margin:8px 0 0;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+  button.mic{min-height:52px;min-width:52px;border:1px solid var(--border);border-radius:14px;
+    background:var(--panel);color:var(--text);font-size:20px;cursor:pointer;flex:0 0 auto;touch-action:manipulation}
+  button.mic.rec{background:var(--danger);border-color:var(--danger)}
+  button.mic:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .more{margin:8px 0 14px;padding:16px;border:1px solid var(--border);border-radius:16px;background:var(--panel)}
+  .more h2{font-size:18px;margin:0 0 4px}
+  .more h3{font-size:15px;margin:18px 0 4px}
+  .more p,.more ol{margin:0 0 10px;color:var(--muted)}
+  .more ol{padding-left:20px}
+  .more a{color:var(--accent)}
+  .cta{display:inline-block;min-height:48px;padding:12px 18px;border-radius:12px;
+    background:var(--accent2);color:#04210f !important;font-weight:700;text-decoration:none}
+  .cta:focus-visible,.more a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  /* Phones: full-width tap targets, nothing squeezed, nothing sideways. */
+  @media (max-width:640px){
+    .wrap{padding-top:12px}
+    .chips{display:grid;grid-template-columns:1fr;gap:8px}
+    .chip{border-radius:14px;padding:12px 14px;font-size:15px}
+    .msg{max-width:100%;font-size:16px}
+    .msg.user{max-width:92%}
+    button.send{padding:13px 16px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{scroll-behavior:auto !important;transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Salomon <span>Earnings Desk</span></h1>
+    <p class="sub">Ask about earnings, the market today, and the stocks everyone's watching —
+      answered in plain language from live Salomon data.</p>
+    <div class="badge"><b>Salomon AI</b> · Live market data · Read-only</div>
+    <div id="status" role="status">Checking connection…</div>
+  </header>
+
+  <section class="frozen" aria-labelledby="frozen-h">
+    <h2 id="frozen-h">🔒 Frozen calls &amp; scorecard</h2>
+    <p class="fz-sub">Salomon AI locks each beat/miss call <b>before</b> the company reports —
+      timestamped, with a tamper-proof fingerprint — then grades it against the real result.</p>
+    <p id="fz-score" class="fz-score">Loading…</p>
+    <ul id="fz-list" class="fz-list"></ul>
+    <details id="fz-more" hidden><summary>Show all frozen calls</summary><ul id="fz-all" class="fz-list"></ul></details>
+    <p id="fz-proof" class="fz-proof"></p>
+  </section>
+
+  <p class="chips-label" id="chips-label">Tap a question, type your own, or tap 🎤 to ask by voice:</p>
+  <div class="chips" id="chips" aria-labelledby="chips-label"></div>
+  <main id="chat" aria-live="polite"></main>
+
+  <form id="form">
+    <label class="visually-hidden" for="input">Your question</label>
+    <input id="input" autocomplete="off" enterkeyhint="send"
+      placeholder="Ask a question… e.g. Who reports earnings this week?">
+    <button class="mic" id="mic" type="button" aria-label="Ask by voice" hidden>🎤</button>
+    <button class="send" id="send" type="submit">Ask</button>
+  </form>
+
+  <section class="more" aria-labelledby="more-h">
+    <h2 id="more-h">Get more from Salomon AI</h2>
+    <p>Free account: live signals, earnings outlooks, your own watchlist and alerts.</p>
+    <a class="cta" data-event="signup"
+       href="https://slmn.trade/register?utm_source=earnings_desk">Start free at slmn.trade →</a>
+    <h3>Use Salomon AI inside your own Muse</h3>
+    <ol>
+      <li><a data-event="connect_muse" href="https://slmn.trade/register?utm_source=earnings_desk_muse">Sign up free</a> at slmn.trade.</li>
+      <li>Go to <b>Settings → API key → Create</b>.</li>
+      <li>In Muse, add the <b>Salomon AI</b> connector and paste your key. Then ask Muse
+        “What's the market doing today?”</li>
+    </ol>
+  </section>
+
+  <footer>
+    For information only — not financial advice. Salomon Earnings Desk is read-only:
+    it never places trades or moves money.
+  </footer>
+</div>
+
+<script>
+const chatEl = document.getElementById('chat');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const statusEl = document.getElementById('status');
+const history = [];
+const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const SUGGESTIONS = [
+  "Who reports earnings this week and what's expected?",
+  "What's the market doing today?",
+  "Which stocks have the strongest signals right now?",
+  "Is NVDA likely to beat earnings?"
+];
+const chips = document.getElementById('chips');
+SUGGESTIONS.forEach(q => {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.type = 'button'; b.textContent = q;
+  b.onclick = () => { input.value = q; form.requestSubmit(); };
+  chips.appendChild(b);
+});
+
+function addMsg(text, who) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  div.textContent = text;
+  chatEl.appendChild(div);
+  div.scrollIntoView({behavior: smooth ? 'smooth' : 'auto', block:'end'});
+  return div;
+}
+
+async function checkHealth() {
+  try {
+    const r = await fetch('/api/health');
+    const d = await r.json();
+    statusEl.textContent = !d.enabled ? '● The demo is paused right now'
+      : d.ok ? '● Connected — live data ready'
+      : '● Connection issue — please try again later';
+  } catch { statusEl.textContent = '● Server not reachable'; }
+}
+checkHealth();
+
+// ── Frozen calls & scorecard ────────────────────────────────────────────────
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function shortDate(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return isNaN(d) ? iso : d.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
+}
+function callRow(c) {
+  const li = el('li');
+  li.appendChild(el('span', 'tk', '$' + c.symbol));
+  li.appendChild(el('span', 'dt', shortDate(c.earnings_date)));
+  li.appendChild(el('span', '', c.salomon_call || c.prediction));
+  if ('correct' in c) {
+    li.appendChild(el('span', 'st ' + (c.correct ? 'ok' : 'bad'),
+      (c.correct ? '✅ ' : '❌ ') + 'reported ' + String(c.result || '').toLowerCase()));
+  } else {
+    li.appendChild(el('span', 'st', '⏳ waiting'));
+  }
+  return li;
+}
+async function loadFrozen() {
+  const score = document.getElementById('fz-score');
+  try {
+    const r = await fetch('/api/frozen');
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'unavailable');
+    const calls = d.calls || [];
+    const sc = d.scorecard || {};
+    const waiting = calls.filter(c => !('correct' in c)).length;
+    score.textContent = sc.graded
+      ? `Scorecard: ${sc.correct} of ${sc.graded} graded calls correct (${sc.pct}%) · ${waiting} waiting for their report`
+      : `${calls.length} calls locked · first grades arrive after tomorrow's reports`;
+    // Graded first (newest), then the next reports coming up.
+    const graded = calls.filter(c => 'correct' in c).reverse();
+    const upcoming = calls.filter(c => !('correct' in c));
+    const list = document.getElementById('fz-list');
+    [...graded, ...upcoming].slice(0, 8).forEach(c => list.appendChild(callRow(c)));
+    if (calls.length > 8) {
+      const all = document.getElementById('fz-all');
+      [...graded, ...upcoming].forEach(c => all.appendChild(callRow(c)));
+      document.getElementById('fz-more').hidden = false;
+    }
+    const first = calls.find(c => c.fingerprint);
+    document.getElementById('fz-proof').textContent =
+      `Tamper check: ${d.tamper_check}` + (first ? ` · fingerprint ${first.fingerprint}… · locked ${
+        new Date(first.frozen_at).toLocaleString()}` : '') +
+      ' · Graded: beat = actual EPS at or above the estimate. Not financial advice.';
+  } catch (e) {
+    score.textContent = 'Frozen calls are unavailable right now.';
+  }
+}
+loadFrozen();
+
+// ── Ask by voice (Muse Voice Transcribe needs WAV: record PCM, encode 16 kHz mono) ──
+const micBtn = document.getElementById('mic');
+let rec = null;
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
+    (window.AudioContext || window.webkitAudioContext)) micBtn.hidden = false;
+
+function encodeWav(chunks, inRate) {
+  let n = 0; chunks.forEach(c => n += c.length);
+  const pcm = new Float32Array(n); let o = 0;
+  chunks.forEach(c => { pcm.set(c, o); o += c.length; });
+  const outRate = 16000, ratio = inRate / outRate, len = Math.floor(pcm.length / ratio);
+  const buf = new ArrayBuffer(44 + len * 2), v = new DataView(buf);
+  const str = (p, s) => { for (let i = 0; i < s.length; i++) v.setUint8(p + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + len * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, outRate, true); v.setUint32(28, outRate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, len * 2, true);
+  for (let i = 0; i < len; i++) {           // average each block (simple low-pass) then 16-bit
+    const a = Math.floor(i * ratio), b = Math.min(pcm.length, Math.floor((i + 1) * ratio));
+    let s = 0; for (let j = a; j < b; j++) s += pcm[j];
+    const x = Math.max(-1, Math.min(1, s / Math.max(1, b - a)));
+    v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true);
+  }
+  return new Blob([buf], {type: 'audio/wav'});
+}
+
+async function startRec() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(4096, 1, 1);
+    const chunks = [];
+    proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    src.connect(proc); proc.connect(ctx.destination);
+    rec = {stream, ctx, src, proc, chunks, timer: setTimeout(stopRec, 20000)};
+    micBtn.classList.add('rec'); micBtn.textContent = '■';
+    micBtn.setAttribute('aria-label', 'Stop recording');
+    statusEl.textContent = '● Listening… tap ■ when you are done (20 s max)';
+  } catch (e) {
+    statusEl.textContent = '● Microphone not available — please type your question';
+  }
+}
+
+async function stopRec() {
+  if (!rec) return;
+  const r = rec; rec = null;
+  clearTimeout(r.timer);
+  r.proc.disconnect(); r.src.disconnect(); r.stream.getTracks().forEach(t => t.stop());
+  const wav = encodeWav(r.chunks, r.ctx.sampleRate);
+  r.ctx.close();
+  micBtn.classList.remove('rec'); micBtn.textContent = '🎤';
+  micBtn.setAttribute('aria-label', 'Ask by voice');
+  micBtn.disabled = true;
+  statusEl.textContent = '● Turning your voice into text…';
+  try {
+    const resp = await fetch('/api/transcribe', {method: 'POST', headers: {'Content-Type': 'audio/wav'}, body: wav});
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.error || 'failed');
+    if (!d.text) throw new Error("I didn't catch that — please try again.");
+    statusEl.textContent = '● Connected — live data ready';
+    input.value = d.text;
+    form.requestSubmit();
+  } catch (e) {
+    statusEl.textContent = '● ' + e.message;
+  } finally {
+    micBtn.disabled = false;
+  }
+}
+micBtn.addEventListener('click', () => rec ? stopRec() : startRec());
+
+// Count funnel clicks (name only, no personal data); never block the link.
+document.querySelectorAll('[data-event]').forEach(a => a.addEventListener('click', () => {
+  try {
+    navigator.sendBeacon('/api/event', new Blob(
+      [JSON.stringify({name: a.dataset.event})], {type: 'application/json'}));
+  } catch {}
+}));
+
+addMsg("Hi! I'm your Earnings Desk. Ask me who reports earnings this week, what the market is doing today, or about a stock you're watching.", 'bot');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  addMsg(q, 'user');
+  history.push({role:'user', content:q});
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Asking…';
+  const wait = addMsg('Looking at the live data…', 'bot typing');
+  try {
+    const r = await fetch('/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({messages: history})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Request failed');
+    history.push({role:'assistant', content:d.answer});
+    const sources = (d.sources && d.sources.length)
+      ? 'Sources: ' + [...new Set(d.sources.map(s =>
+          'Salomon ' + s.endpoint + (s.symbol ? ' (' + s.symbol + ')' : '')))].join(', ')
+        + ' · Fetched ' + new Date(d.answered_at_utc).toLocaleString()
+      : 'Answered ' + new Date(d.answered_at_utc).toLocaleString();
+    wait.textContent = d.answer;
+    wait.classList.remove('typing');
+    const m = document.createElement('div');
+    m.className = 'meta'; m.textContent = sources + ' · Salomon AI';
+    wait.appendChild(m);
+    wait.scrollIntoView({behavior: smooth ? 'smooth' : 'auto', block:'end'});
+  } catch (err) {
+    wait.textContent = 'Sorry — ' + err.message;
+    wait.classList.remove('typing'); wait.classList.add('error');
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Ask';
+    input.focus();
+  }
+});
+</script>
+</body>
+</html>
