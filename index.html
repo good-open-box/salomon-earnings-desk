@@ -7,6 +7,8 @@
 <meta name="theme-color" content="#F6F8FB" media="(prefers-color-scheme: light)">
 <meta name="description" content="Salomon AI Earnings Desk: earnings season explained in plain words, with calls locked before every report and graded after.">
 <title>Earnings Desk · Salomon AI</title>
+<link rel="icon" href="https://slmn.trade/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="https://slmn.trade/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -45,8 +47,10 @@
   /* Top bar */
   .top{display:flex;align-items:center;gap:12px;padding:16px 0}
   .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);font-weight:800;letter-spacing:-.01em}
-  .mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
-    background:linear-gradient(145deg,var(--brand2),var(--brand));color:var(--brand-ink);font-weight:800;font-size:18px}
+  .mark,.av{display:grid;place-items:center;background:#0B0F18;border:1px solid #1E2738}
+  .mark{width:36px;height:36px;border-radius:10px}
+  .mark svg{width:22px;height:24px}
+  .av svg{width:17px;height:18px}
   .pill{font-size:12px;font-weight:700;color:var(--brand2);background:var(--brand-soft);
     border:1px solid rgba(16,185,129,.28);padding:3px 9px;border-radius:999px;white-space:nowrap}
   .top .sp{flex:1}
@@ -96,8 +100,7 @@
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
   .row.user{justify-content:flex-end}
-  .av{width:30px;height:30px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;font-weight:800;font-size:14px;
-    background:linear-gradient(145deg,var(--brand2),var(--brand));color:var(--brand-ink)}
+  .av{width:30px;height:30px;border-radius:9px;flex:0 0 auto}
   .msg{padding:12px 15px;border-radius:16px;line-height:1.6;overflow-wrap:anywhere;font-size:15.5px;max-width:min(640px,88%)}
   .user .msg{background:var(--user);color:var(--user-ink);border-bottom-right-radius:5px;font-weight:600}
   .bot .msg{background:var(--card2);border:1px solid var(--line);border-top-left-radius:5px}
@@ -187,6 +190,7 @@
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-logo" viewBox="290 80 250 270"><path fill="#00FF88" d="M522.84,225.87c0,8.36-2.63,16.1-7.1,22.45-1.1,1.56-2.31,3.04-3.63,4.42-.01.02-.04.04-.05.05l-1.33,1.33s-.03.04-.05.05l-71.29,71.28c-5.59,6.26-13.72,10.2-22.77,10.2-16.86,0-30.51-13.67-30.51-30.51,0-8.99,3.88-17.07,10.07-22.65l34.15-34.15h-71.92c-4.28,0-8.39-.68-12.25-1.94-15.75-5.15-27.12-19.96-27.12-37.42,0-8.2,2.5-15.81,6.79-22.11.81-1.18,1.68-2.32,2.6-3.41l4.45-4.45,31.8-31.8c-1.36,3.35-2.11,7.01-2.11,10.85,0,4.34.96,8.46,2.68,12.15,4.53,9.73,14.32,16.5,25.72,16.65,0,0,0,0,0,0h92.83c2.5,0,4.94.24,7.31.69,18.06,3.42,31.71,19.29,31.71,38.34Z"/><polygon fill="#00FF88" points="464.41 133.7 378.5 133.7 421.45 90.75 464.41 133.7"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
@@ -200,7 +204,7 @@
 <div class="wrap">
   <nav class="top" aria-label="Salomon AI">
     <a class="logo" href="https://slmn.trade/?utm_source=earnings_desk" data-event="signup">
-      <span class="mark" aria-hidden="true">S</span><span>Salomon AI</span>
+      <span class="mark" aria-hidden="true"><svg><use href="#i-logo"/></svg></span><span>Salomon AI</span>
     </a>
     <span class="pill">Earnings Desk</span>
     <span class="sp"></span>
@@ -320,7 +324,13 @@ function renderAnswer(container, text) {
 
 function addRow(who) {
   const row = el('div', 'row ' + who);
-  if (who === 'bot') row.appendChild(el('span', 'av', 'S'));
+  if (who === 'bot') {
+    const av = el('span', 'av');
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    u.setAttribute('href', '#i-logo'); s.appendChild(u); av.appendChild(s);
+    row.appendChild(av);
+  }
   const msg = el('div', 'msg');
   row.appendChild(msg);
   chatEl.appendChild(row);
