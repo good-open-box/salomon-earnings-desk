@@ -98,6 +98,9 @@
     padding:9px 14px;font:600 14px/1.3 var(--font);cursor:pointer;min-height:40px;text-align:left;
     transition:border-color .2s,background-color .2s;touch-action:manipulation}
   .chip:hover{border-color:var(--brand)}
+  .mini.speak{margin-left:auto}
+  .mini.speak.on{color:var(--brand2);border-color:var(--brand)}
+  .mini.speak svg{width:15px;height:15px}
   .greet-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
@@ -228,6 +231,7 @@
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></symbol>
 </svg>
@@ -259,7 +263,7 @@
       <div class="card-h">
         <span class="ico"><svg class="i"><use href="#i-chat"/></svg></span>
         <h2 id="chat-h">Ask the desk</h2>
-        <span class="sub">Type or tap the mic</span>
+        <button class="mini speak" id="speak" type="button" hidden aria-pressed="false" aria-label="Read answers aloud"><svg class="i"><use href="#i-speaker"/></svg><span class="speak-txt">Voice off</span></button>
       </div>
       <div class="watch" id="watch" hidden aria-label="Your watchlist"><span class="lbl">Your watchlist</span></div>
       <div class="chips" id="chips" aria-label="Suggested questions"></div>
@@ -580,66 +584,79 @@ async function checkHealth() {
 }
 checkHealth();
 
-const GREETING = "Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what Wall Street expects, or what Salomon predicts for a company. Every Salomon call is locked before the report and graded after it — misses included, nothing quietly edited.";
-const GREET_REPLIES = [];
-let greetingReady = false;
-let pendingFollow = null;
-function replyButtons(pairs) {
+const GREETING = "Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what Wall Street expects, or what Salomon predicts for a company. Every call is locked before the report and graded after, misses included.";
+const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function replyButtons(questions) {
   const box = el('div', 'greet-actions');
-  pairs.forEach(([label, q]) => {
-    const b = el('button', 'chip', label);
+  questions.forEach(q => {
+    const b = el('button', 'chip', q);
     b.type = 'button';
     b.onclick = () => ask(q);
     box.appendChild(b);
   });
   return box;
 }
-function paintGreeting(msg) {
-  renderAnswer(msg, GREETING);
-  if (GREET_REPLIES.length) msg.appendChild(replyButtons(GREET_REPLIES));
+// Type the answer out a few characters at a time, like someone writing back.
+function typeOut(container, text) {
+  return new Promise(done => {
+    if (still || text.length > 1800) { renderAnswer(container, text); done(); return; }
+    let i = 0;
+    const step = Math.max(2, Math.round(text.length / 120));
+    (function tick() {
+      i = Math.min(text.length, i + step);
+      container.textContent = '';
+      renderAnswer(container, text.slice(0, i));
+      chatEl.scrollTop = chatEl.scrollHeight;
+      if (i < text.length) setTimeout(tick, 16); else done();
+    })();
+  });
 }
-function showGreeting() {
+
+// ── Speaking: the phone's own voice reads answers aloud ──
+const canSpeak = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+let speakOn = false, lastAskWasVoice = false;
+try { speakOn = localStorage.getItem('salomon_desk_speak') === '1'; } catch {}
+function plain(text) {
+  return text.replace(/\*\*/g, '').replace(/^[*\-•]\s+/gm, '').replace(/—/g, ', ')
+             .replace(/\$(-?)(\d+)\.(\d\d)\b/g, (m, neg, d, c) => (neg ? 'minus ' : '') + d + ' dollars ' + c)
+             .replace(/\bEPS\b/g, 'earnings per share').replace(/\n+/g, '. ');
+}
+function speak(text) {
+  if (!canSpeak) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(plain(text).replace(/Not financial advice.*$/i, 'Not financial advice.'));
+  u.rate = 1.04; u.lang = 'en-US';
+  speechSynthesis.speak(u);
+}
+const speakBtn = document.getElementById('speak');
+function paintSpeak() {
+  speakBtn.setAttribute('aria-pressed', speakOn ? 'true' : 'false');
+  speakBtn.classList.toggle('on', speakOn);
+  speakBtn.querySelector('.speak-txt').textContent = speakOn ? 'Voice on' : 'Voice off';
+}
+if (canSpeak) {
+  speakBtn.hidden = false; paintSpeak();
+  speakBtn.onclick = () => {
+    speakOn = !speakOn;
+    try { localStorage.setItem('salomon_desk_speak', speakOn ? '1' : '0'); } catch {}
+    paintSpeak();
+    if (speakOn) speak('Voice on. I will read my answers out loud.'); else speechSynthesis.cancel();
+  };
+}
+
+async function showGreeting() {
   const msg = addRow('bot');
-  const paint = () => {
-    msg.textContent = '';
-    paintGreeting(msg);
-    greetingReady = true;
-    if (pendingFollow && !history.length) pendingFollow();
-    pendingFollow = null;
-  };
-  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (still) { paint(); return; }
-  const dots = el('span', 'typing');
-  dots.append(el('span'), el('span'), el('span'));
+  const dots = el('span', 'typing'); dots.append(el('span'), el('span'), el('span'));
   msg.appendChild(dots);
-  setTimeout(paint, 650);
-}
-function followGreeting(sc, graded, upcoming) {
-  if (history.length) return;
-  const run = () => {
-    if (history.length || document.getElementById('greet-live')) return;
-    const miss = graded.find(c => !c.correct);
-    const missName = miss ? (miss.symbol === 'SHW' ? 'Sherwin-Williams' : miss.symbol) : '';
-    const next = upcoming[0];
-    let line;
-    if (sc.graded) {
-      line = `**${sc.correct} of ${sc.graded} calls right so far.** Each one was locked before its report.`;
-      if (miss) line += ' ' + missName + ' is the miss — ask me what happened.';
-    } else {
-      line = `**${upcoming.length} ${upcoming.length === 1 ? 'call is' : 'calls are'} locked** and waiting for their reports. Each one is frozen before its report, so nothing can be changed after the fact.`;
-    }
-    if (next) line += ' Next to report: **' + next.symbol + '**' +
-      (next.earnings_date ? ' on ' + shortDate(next.earnings_date) : '') + '.';
-    const msg = addRow('bot');
-    msg.parentElement.id = 'greet-live';
-    renderAnswer(msg, line);
-    const replies = [];
-    if (miss) replies.push(['What happened with ' + missName + '?', 'Was Salomon right about ' + missName + '? Walk me through what it called and what the company actually reported.']);
-    if (next) replies.push(["Salomon's call on " + next.symbol, "What does Salomon expect for " + next.symbol + "'s earnings? Include why, and what would prove the call wrong."]);
-    if (replies.length) msg.appendChild(replyButtons(replies));
-  };
-  if (greetingReady) run();
-  else pendingFollow = run;
+  let g = {text: GREETING, replies: []};
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch('/api/greeting', {signal: ctl.signal}); clearTimeout(t);
+    if (r.ok) { const d = await r.json(); if (d.text) g = d; }
+  } catch {}
+  if (history.length) { msg.textContent = ''; renderAnswer(msg, g.text); return; }
+  await typeOut(msg, g.text);
+  if (g.replies && g.replies.length) msg.appendChild(replyButtons(g.replies));
 }
 showGreeting();
 
@@ -662,7 +679,11 @@ form.addEventListener('submit', async (e) => {
     if (!r.ok) throw new Error(d.error || 'Request failed');
     history.push({role: 'assistant', content: d.answer});
     wait.textContent = '';
-    renderAnswer(wait, d.answer);
+    statusEl.textContent = '';
+    if (speakOn || lastAskWasVoice) speak(d.answer);
+    lastAskWasVoice = false;
+    await typeOut(wait, d.answer);
+    if (d.followups && d.followups.length) wait.appendChild(replyButtons(d.followups));
     const meta = el('div', 'meta');
     const labels = [...new Set((d.sources || []).map(s => (SOURCE_NAMES[s.tool] ||
         s.tool.replace(/^get_/, '').replace(/_/g, ' ')) + (s.symbol ? ' · ' + s.symbol : '')))];
@@ -791,7 +812,6 @@ async function loadFrozen() {
     }
     proof.append('A beat means actual EPS at or above the estimate. Not financial advice. ');
     proof.append('Voice is Muse Voice Transcribe. Answers are Muse Spark, with Muse Spark 1.3 as the backup.');
-    followGreeting(sc, graded, upcoming);
   } catch (e) {
     score.textContent = 'Frozen calls are unavailable right now.';
   }
@@ -867,6 +887,7 @@ async function stopRec() {
     if (!d.text) throw new Error("I didn't catch that. Please try again.");
     statusEl.textContent = '';
     input.value = d.text;
+    lastAskWasVoice = true;   // asked out loud, so the answer is read out loud
     form.requestSubmit();
   } catch (e) {
     statusEl.textContent = e.message;
@@ -874,7 +895,11 @@ async function stopRec() {
     micBtn.disabled = false;
   }
 }
-micBtn.addEventListener('click', () => rec ? stopRec() : startRec());
+micBtn.addEventListener('click', () => {
+  // iPhones only allow speech that starts from a tap: unlock it now, speak later.
+  if (canSpeak && !rec) { try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch {} }
+  rec ? stopRec() : startRec();
+});
 
 // Count funnel clicks (name only, no personal data); never block the link.
 document.querySelectorAll('[data-event]').forEach(a => a.addEventListener('click', () => {

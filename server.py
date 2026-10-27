@@ -14,7 +14,7 @@ import time
 import urllib.error
 import urllib.request
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -204,6 +204,9 @@ SYSTEM_PROMPT = """You are the Salomon Earnings Desk assistant for everyday inve
 If asked what powers you, say you are Salomon AI's assistant; do not name AI
 models or vendors.
 
+How you talk: like a friendly, knowledgeable assistant speaking to one person.
+Use "I" and "you", plain warm sentences, and keep it short. Lead with the answer.
+
 Rules you must follow:
 - Answer ONLY from the live Salomon tools. Call a tool whenever a question needs
   market, earnings, signal, or company data. Never invent numbers, dates, or prices.
@@ -218,6 +221,10 @@ Rules you must follow:
   what actually happened (EPS actual vs estimate, surprise %), and whether the
   call was right. Use these for that one company only; never add them up into a
   track record (that comes only from get_frozen_calls).
+- End EVERY answer with one final line in exactly this form:
+  Follow-ups: <short question 1> | <short question 2>
+  Two natural next questions this person might ask, answerable from your tools
+  (never about buying or selling). Put the "Not financial advice" line above it.
 - Never show raw data field names (such as salomon_was_right or recent_results)
   to the user; say it in plain words ("Salomon was right").
 - If a tool returns no data, errors, or does not cover the question, say so plainly.
@@ -596,7 +603,7 @@ def fetch_salomon(name, symbol=""):
     return text
 
 
-def call_model(messages):
+def call_model(messages, tools=True):
     """One chat completion, Baseten first, api.meta.ai as fallback.
 
     Returns (result, model_display). Baseten runs Muse Spark
@@ -632,8 +639,7 @@ def call_model(messages):
                 payload={
                     "model": model,
                     "messages": messages,
-                    "tools": TOOLS,
-                    "tool_choice": "auto",
+                    **({"tools": TOOLS, "tool_choice": "auto"} if tools else {}),
                     "max_tokens": 4000,
                     "temperature": 0.3,
                     **extra,
@@ -661,8 +667,110 @@ def extract_text(content):
     return ""
 
 
+# "Salomon's call" is a beat/miss call, so "call" stays allowed; trading words don't.
+_TRADE_WORDS = re.compile(r"(?i)\b(buy|buying|sell|selling|short|puts?|options?|strikes?|positions?|invest)\b")
+
+
+def split_followups(answer):
+    """Pull the model's 'Follow-ups: a | b' line off the answer; keep safe ones."""
+    m = re.search(r"(?im)^\s*\**follow[- ]?ups?\**\s*:\s*(.+?)\s*$", answer)
+    if not m:
+        return answer, []
+    qs = [q.strip(" *-•\"'") for q in m.group(1).split("|")]
+    qs = [q[:90] for q in qs if 6 <= len(q) and not _TRADE_WORDS.search(q)][:2]
+    return (answer[:m.start()] + answer[m.end():]).strip(), qs
+
+
+def et_today():
+    """Today's date in New York, where the earnings calendar lives."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/New_York")).date()
+    except Exception:   # slim images may lack tz data: EST is close enough for a date
+        return (datetime.now(timezone.utc) - timedelta(hours=5)).date()
+
+
+GREETING_FALLBACK = ("Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what "
+                     "Wall Street expects, or what Salomon predicts for a company. Every call "
+                     "is locked before the report and graded after, misses included.")
+_greeting = {"at": 0.0, "data": None}
+_greeting_lock = threading.Lock()
+
+
+def greeting():
+    """A short live welcome written by the model from today's real ledger and
+    calendar. One per 10 minutes, shared by every visitor. A stale one is served
+    at once while a fresh one is written in the background."""
+    if _greeting["data"]:
+        if time.monotonic() - _greeting["at"] >= 600 and _greeting_lock.acquire(blocking=False):
+            _greeting["at"] = time.monotonic()          # one refresh at a time
+            _greeting_lock.release()
+            threading.Thread(target=_make_greeting, daemon=True).start()
+        return _greeting["data"]
+    return _make_greeting()
+
+
+def _make_greeting():
+    with _greeting_lock:
+        replies, text = [], GREETING_FALLBACK
+        try:
+            fz = frozen_compact(salomon_get("/api/intel/frozen"))
+            feed = salomon_get("/api/intel/earnings")
+            graded = [c for c in fz["calls"] if "correct" in c]
+            misses = [c["symbol"] for c in graded if not c["correct"]]
+            done = {c["symbol"] for c in graded}
+            def when(iso):
+                try:
+                    d = datetime.strptime(str(iso)[:10], "%Y-%m-%d").date()
+                except ValueError:
+                    return iso
+                days = (d - et_today()).days
+                return {0: "today", 1: "tomorrow"}.get(days, d.strftime("%A %b %-d"))
+            upcoming = [{"symbol": p.get("symbol"), "reports": when(p.get("earnings_date")),
+                         "salomon_outlook": outlook_text(p.get("prediction"), p.get("confidence"))}
+                        for p in (feed.get("predictions") or [])
+                        if p.get("symbol") not in done][:3]
+            today = et_today().isoformat()
+            reported = [{"symbol": r.get("symbol"), "result": r.get("outcome")}
+                        for r in (feed.get("recent_results") or [])
+                        if r.get("reported") and r.get("earnings_date", "") >= today][:6]
+            facts = {"scorecard": fz.get("scorecard"), "graded_misses": misses,
+                     "graded_right": [c["symbol"] for c in graded if c["correct"]][-6:],
+                     "calls_waiting": len(fz["calls"]) - len(graded),
+                     "reported_today": reported, "next_reports": upcoming}
+            if not graded:
+                facts.pop("scorecard")
+            if misses:
+                replies.append(f"What happened with {misses[-1]}?")
+            if upcoming:
+                replies.append(f"What's Salomon's call on {upcoming[0]['symbol']}?")
+            replies.append("Who reports earnings this week?")
+            result, _ = call_model([
+                {"role": "system", "content":
+                    "You are the Salomon Earnings Desk assistant greeting someone who just "
+                    "opened the page. Write 2 or 3 short, warm sentences (under 60 words) in "
+                    "the first person, using ONLY the facts given. The calls are Salomon's, "
+                    "not yours: say 'Salomon is N of M calls right' and name a miss by ticker "
+                    "if a scorecard is given. Then mention one "
+                    "thing happening today or next. End by asking what they'd like to know. "
+                    "Plain text, **bold** allowed for the score only. Never advise buying or "
+                    "selling, never name AI models."},
+                {"role": "user", "content": json.dumps(facts, separators=(",", ":"))},
+            ], tools=False)
+            out = extract_text(((result.get("choices") or [{}])[0].get("message") or {}).get("content"))
+            out, _ = split_followups(out)
+            out = re.sub(r"\s*[:—-]?\s*\b(BUY|SELL|STRONG_BUY|STRONG_SELL)\b", "", out).strip()
+            if 20 <= len(out) <= 600:
+                text = out
+        except Exception as exc:
+            print(f"greeting: {exc}")
+        data = {"text": text, "replies": replies[:3]}
+        _greeting.update(at=time.monotonic(), data=data)
+        return data
+
+
 def chat(user_messages):
-    """Run the tool-calling loop; return (answer, sources, model_display)."""
+    """Run the tool-calling loop; return (answer, sources, model_display, followups)."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     # Only accept simple text turns from the browser, cap history.
     for m in user_messages[-12:]:
@@ -682,6 +790,7 @@ def chat(user_messages):
             answer = extract_text(msg.get("content"))
             if not answer:
                 raise RuntimeError("The assistant returned an empty answer. Please try again.")
+            answer, followups = split_followups(answer)
             # Last line of defence: users never see BUY/SELL labels. They are NOT
             # mapped to beat/miss (a BUY can be puts on a predicted miss), only removed.
             answer = re.sub(r"\s*[:—-]?\s*\b(BUY|SELL|STRONG_BUY|STRONG_SELL)\b", "", answer)
@@ -693,7 +802,7 @@ def chat(user_messages):
             # The disclaimer is guaranteed here, not just asked for in the prompt.
             if "not financial advice" not in answer.lower():
                 answer = answer.rstrip() + "\n\nNot financial advice — for information only."
-            return answer, sources, model_display
+            return answer, sources, model_display, followups
 
         messages.append({
             "role": "assistant",
@@ -769,6 +878,10 @@ class Handler(SimpleHTTPRequestHandler):
             counters.add("page_views")
             self.path = "/index.html"
             return super().do_GET()
+        if path == "/api/greeting":
+            if not DEMO_ENABLED:
+                return self.send_json(200, {"text": GREETING_FALLBACK, "replies": []})
+            return self.send_json(200, greeting())
         if path == "/api/share-art":
             img, ctype = share_art()
             if not img:
@@ -884,9 +997,10 @@ class Handler(SimpleHTTPRequestHandler):
             messages = payload.get("messages")
             if not isinstance(messages, list) or not messages:
                 return self.send_json(400, {"error": "Please type a question first."})
-            answer, sources, model_display = chat(messages)
+            answer, sources, model_display, followups = chat(messages)
             return self.send_json(200, {
                 "answer": answer,
+                "followups": followups,
                 "sources": sources,
                 "model": model_display,
                 "model_display": model_display,
@@ -918,4 +1032,6 @@ if __name__ == "__main__":
     print(f"Fallback model: {META_MODEL} via api.meta.ai | key loaded: "
           f"{bool(read_key('META_API_KEY', META_KEY_FILE))} "
           f"| Salomon key loaded: {bool(read_key('SALOMON_API_KEY', SALOMON_KEY_FILE))}")
+    if DEMO_ENABLED:   # write the first welcome before the first visitor arrives
+        threading.Thread(target=_make_greeting, daemon=True).start()
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
