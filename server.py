@@ -225,6 +225,9 @@ Rules you must follow:
   Follow-ups: <short question 1> | <short question 2>
   Two natural next questions this person might ask, answerable from your tools
   (never about buying or selling). Put the "Not financial advice" line above it.
+- If a call or result is marked not counted (a data mismatch), say so plainly:
+  Salomon does not count it as right or wrong because the reported and expected
+  figures appear to be different earnings measures.
 - Never show raw data field names (such as salomon_was_right or recent_results)
   to the user; say it in plain words ("Salomon was right").
 - If a tool returns no data, errors, or does not cover the question, say so plainly.
@@ -484,7 +487,10 @@ def frozen_compact(data):
                "prediction": c.get("prediction"), "confidence": c.get("confidence"),
                "frozen_at": c.get("frozen_at"),
                "fingerprint": str(c.get("batch_hash") or "")[:12]}
-        if "correct" in c:
+        if c.get("excluded"):
+            row.update(result=c.get("result"), surprise_pct=c.get("surprise_pct"),
+                       status=c.get("excluded_reason") or "not counted")
+        elif "correct" in c:
             row.update(result=c.get("result"), correct=c.get("correct"),
                        surprise_pct=c.get("surprise_pct"))
         else:
@@ -508,7 +514,9 @@ def recent_row(r):
                     "eps_actual": round_cents(r.get("eps_actual")),
                     "eps_estimate": round_cents(r.get("eps_estimate")),
                     "surprise_pct": r.get("surprise_pct")})
-        if call and "call_correct" in r:
+        if r.get("data_check"):
+            row["grading_note"] = r["data_check"]
+        elif call and "call_correct" in r:
             row["salomon_was_right"] = bool(r["call_correct"])
     else:
         row["result"] = "not published yet"

@@ -733,7 +733,11 @@ function callRow(c) {
   const cls = p === 'BEAT' ? 'b-beat' : p === 'MISS' ? 'b-miss' : 'b-inline';
   li.appendChild(el('span', 'badge ' + cls, p === 'IN-LINE' ? 'In line' : p === 'BEAT' ? 'Beat' : 'Miss'));
   const ft = el('div', 'ft');
-  if ('correct' in c) {
+  if (c.excluded) {
+    ft.appendChild(el('span', 'st', 'Not counted: the reported and expected figures look like different earnings measures'));
+    const [, nasdaq] = checkLinks(c.symbol);
+    if (nasdaq) ft.appendChild(link('chk', 'Check ↗', nasdaq[1]));
+  } else if ('correct' in c) {
     const sp = c.surprise_pct == null ? '' : ' (' + (c.surprise_pct >= 0 ? '+' : '') + c.surprise_pct + '% vs estimate)';
     ft.appendChild(el('span', 'st ' + (c.correct ? 'ok' : 'bad'),
       (c.correct ? 'Right' : 'Wrong') + ': it reported a ' + String(c.result || '').toLowerCase() + sp));
@@ -765,7 +769,8 @@ async function loadFrozen() {
     // Misses first, so the calls Salomon got wrong are never buried.
     const graded = calls.filter(c => 'correct' in c)
       .sort((a, b) => (a.correct - b.correct) || String(b.earnings_date).localeCompare(String(a.earnings_date)));
-    const upcoming = calls.filter(c => !('correct' in c))
+    const notCounted = calls.filter(c => c.excluded);
+    const upcoming = calls.filter(c => !('correct' in c) && !c.excluded)
       .sort((a, b) => String(a.earnings_date).localeCompare(String(b.earnings_date)));
     document.getElementById('st-locked').textContent = calls.length;
     document.getElementById('st-graded').textContent = sc.graded || 0;
@@ -777,14 +782,15 @@ async function loadFrozen() {
       big.append(sc.correct + ' of ' + sc.graded);
       big.appendChild(el('small', '', 'graded'));
       score.textContent = Math.round(sc.pct) + '% right. ' + upcoming.length +
-        ' still waiting for their report. ' + book;
+        ' still waiting for their report. ' +
+        (notCounted.length ? notCounted.length + ' not counted (data mismatch, shown below). ' : '') + book;
     } else {
       big.append(String(calls.length));
       big.appendChild(el('small', '', 'calls locked'));
       score.textContent = 'First grades land after the next reports. Nothing can be changed after it is locked. ' + book;
     }
     const gl = document.getElementById('fz-graded');
-    graded.forEach(c => gl.appendChild(callRow(c)));
+    [...graded, ...notCounted].forEach(c => gl.appendChild(callRow(c)));
     document.getElementById('fz-graded-h').hidden = !graded.length;
     const list = document.getElementById('fz-list');
     upcoming.slice(0, 4).forEach(c => list.appendChild(callRow(c)));

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-earnings_freeze.py  (copy of the Salomon AI backend module, built during the hackathon) — frozen, timestamped earnings calls + private grading.
+earnings_freeze.py — frozen, timestamped earnings calls + private grading.
 
 Oct 26 2026 (Patrick). earnings_predictions.json is regenerated every 4 hours, so a
 call quoted in a post could later read differently. This file makes "frozen" true:
@@ -29,7 +29,7 @@ import sys
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-BASE_DIR    = os.environ.get("SALOMON_DATA_DIR", ".")   # Salomon backend data folder
+BASE_DIR    = os.environ.get("SALOMON_DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
 PRED_FILE   = os.path.join(BASE_DIR, "earnings_predictions.json")
 FREEZE_FILE = os.path.join(BASE_DIR, "earnings_freeze.jsonl")
 GRADE_FILE  = os.path.join(BASE_DIR, "earnings_freeze_grades.jsonl")
@@ -37,6 +37,13 @@ ET          = ZoneInfo("America/New_York")
 HORIZON_DAYS = 7
 INLINE_PCT   = 2.0
 CALLS = ("BEAT", "MISS", "IN-LINE")
+# Oct 27 2026: AMT "beat" by +73% (2.87 vs 1.66): the calendar compared AFFO with a
+# GAAP EPS estimate. A surprise this large on an estimate of $1+ almost always means
+# two different earnings measures, so the grade is shown but not counted. Same rule
+# for every company, right or wrong; small estimates (BA -0.21) are exempt.
+MISMATCH_MIN_EST = 1.0
+MISMATCH_PCT     = 50.0
+MISMATCH_REASON  = "not counted: the reported and expected figures look like different earnings measures"
 CONFS = ("HIGH", "MEDIUM", "LOW")
 
 
@@ -175,10 +182,15 @@ def public_view(days_back: int = 14) -> dict:
         if c["earnings_date"] < cutoff:
             continue
         g = grades.get((c["symbol"], c["earnings_date"]))
-        calls.append({k: c[k] for k in ("symbol", "earnings_date", "prediction",
-                                        "confidence", "frozen_at", "batch_hash")}
-                     | ({"result": g["outcome"], "correct": g["correct"],
-                         "surprise_pct": g["surprise_pct"]} if g else {}))
+        row = {k: c[k] for k in ("symbol", "earnings_date", "prediction",
+                                 "confidence", "frozen_at", "batch_hash")}
+        if g and excluded(g):
+            row |= {"result": g["outcome"], "surprise_pct": g["surprise_pct"],
+                    "excluded": True, "excluded_reason": MISMATCH_REASON}
+        elif g:
+            row |= {"result": g["outcome"], "correct": g["correct"],
+                    "surprise_pct": g["surprise_pct"]}
+        calls.append(row)
     calls.sort(key=lambda c: (c["earnings_date"], c["symbol"]))
     ok, chain = verify()
     return {"calls": calls, "scorecard": scorecard(), "chain_ok": ok, "chain": chain,
@@ -187,10 +199,20 @@ def public_view(days_back: int = 14) -> dict:
             "generated_at": datetime.now(ET).isoformat(timespec="seconds")}
 
 
+def excluded(g: dict) -> bool:
+    """A grade kept in the file but left out of the score (see MISMATCH_*)."""
+    try:
+        return (abs(float(g["eps_estimate"])) >= MISMATCH_MIN_EST
+                and abs(float(g["surprise_pct"])) >= MISMATCH_PCT)
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def scorecard() -> dict:
-    gs = _lines(GRADE_FILE)
+    all_gs = _lines(GRADE_FILE)
+    gs = [g for g in all_gs if not excluded(g)]
     right = sum(g["correct"] for g in gs)
-    return {"graded": len(gs), "correct": right,
+    return {"graded": len(gs), "correct": right, "excluded": len(all_gs) - len(gs),
             "pct": round(right / len(gs) * 100, 1) if gs else None}
 
 
