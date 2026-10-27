@@ -820,11 +820,16 @@ function callRow(c) {
   li.appendChild(el('span', 'badge ' + cls, p === 'IN-LINE' ? 'In line' : p === 'BEAT' ? 'Beat' : 'Miss'));
   const ft = el('div', 'ft');
   if (c.excluded) {
-    ft.appendChild(el('span', 'st', 'Not counted: the reported and expected figures look like different earnings measures'));
+    const m2 = v => (v < 0 ? '−$' : '$') + Math.abs(v).toFixed(2);
+    ft.appendChild(el('span', 'st', 'Not counted: the reported and expected figures look like different earnings measures' +
+      (c.eps_actual != null && c.eps_estimate != null ? ' (' + m2(c.eps_actual) + ' reported vs ' + m2(c.eps_estimate) + ' expected)' : '')));
     const [, nasdaq] = checkLinks(c.symbol);
     if (nasdaq) ft.appendChild(link('chk', 'Check ↗', nasdaq[1]));
   } else if ('correct' in c) {
-    const sp = c.surprise_pct == null ? '' : ' (' + (c.surprise_pct >= 0 ? '+' : '') + c.surprise_pct + '% vs estimate)';
+    const money = v => (v < 0 ? '−$' : '$') + Math.abs(v).toFixed(2);
+    const sp = (c.eps_actual != null && c.eps_estimate != null
+      ? ': ' + money(c.eps_actual) + ' a share vs ' + money(c.eps_estimate) + ' expected' : '') +
+      (c.surprise_pct == null ? '' : ' (' + (c.surprise_pct >= 0 ? '+' : '') + c.surprise_pct + '%)');
     ft.appendChild(el('span', 'st ' + (c.correct ? 'ok' : 'bad'),
       (c.correct ? 'Right' : 'Wrong') + ': it reported a ' + String(c.result || '').toLowerCase() + sp));
     const [, nasdaq] = checkLinks(c.symbol);

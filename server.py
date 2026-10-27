@@ -492,12 +492,13 @@ def frozen_compact(data):
                "prediction": c.get("prediction"), "confidence": c.get("confidence"),
                "frozen_at": c.get("frozen_at"),
                "fingerprint": str(c.get("batch_hash") or "")[:12]}
+        eps = {k: round_cents(c[k]) for k in ("eps_actual", "eps_estimate") if c.get(k) is not None}
         if c.get("excluded"):
-            row.update(result=c.get("result"), surprise_pct=c.get("surprise_pct"),
-                       status=c.get("excluded_reason") or "not counted")
+            row.update(result=c.get("result"), surprise_pct=c.get("surprise_pct"), excluded=True,
+                       status=c.get("excluded_reason") or "not counted", **eps)
         elif "correct" in c:
             row.update(result=c.get("result"), correct=c.get("correct"),
-                       surprise_pct=c.get("surprise_pct"))
+                       surprise_pct=c.get("surprise_pct"), **eps)
         else:
             row["status"] = "waiting for report"
         calls.append(row)

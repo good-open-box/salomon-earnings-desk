@@ -45,6 +45,18 @@ MISMATCH_MIN_EST = 1.0
 MISMATCH_PCT     = 50.0
 MISMATCH_REASON  = "not counted: the reported and expected figures look like different earnings measures"
 CONFS = ("HIGH", "MEDIUM", "LOW")
+# Oct 27 2026 (Patrick: "yes archive"): outside proof. Each batch line's sha256 is
+# stamped by public OpenTimestamps calendars (anchored in Bitcoin), so a batch can be
+# shown to have existed at that time without trusting Salomon. Only the 32-byte
+# hash leaves this machine. Receipts: earnings_freeze_ots/batch-N.<calendar>.ots
+OTS_DIR       = os.path.join(BASE_DIR, "earnings_freeze_ots")
+ANCHOR_FILE   = os.path.join(BASE_DIR, "earnings_freeze_anchors.jsonl")
+OTS_CALENDARS = {"alice": "https://alice.btc.calendar.opentimestamps.org",
+                 "bob":   "https://bob.btc.calendar.opentimestamps.org"}
+# .ots file = magic, version 1, "sha256 of the file" op, the digest, then the
+# calendar's pending timestamp.
+_OTS_HEADER = (b"\x00OpenTimestamps\x00\x00Proof\x00\xbf\x89\xe2\xe8\x84\xe8\x92\x94"
+               b"\x01\x08")
 
 
 def _lines(path: str) -> list[dict]:
@@ -66,6 +78,63 @@ def _batch_hash(prev_hash: str, frozen_at: str, calls: list[dict]) -> str:
     body = json.dumps({"prev": prev_hash, "frozen_at": frozen_at, "calls": calls},
                       separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(body.encode()).hexdigest()
+
+
+def batch_lines() -> list[bytes]:
+    """The freeze file's lines exactly as stored (what gets stamped)."""
+    try:
+        with open(FREEZE_FILE, "rb") as f:
+            return [x.rstrip(b"\n") for x in f if x.strip()]
+    except FileNotFoundError:
+        return []
+
+
+def anchor(batch_no: int | None = None) -> list[dict]:
+    """Stamp every batch that has no receipt yet (or just batch_no). Never raises."""
+    import requests
+    done = {a["batch"] for a in _lines(ANCHOR_FILE)}
+    out = []
+    for n, line in enumerate(batch_lines(), 1):
+        if n in done or (batch_no and n != batch_no):
+            continue
+        digest = hashlib.sha256(line).digest()
+        got = []
+        for name, url in OTS_CALENDARS.items():
+            try:
+                r = requests.post(url + "/digest", data=digest, timeout=20,
+                                  headers={"Accept": "application/vnd.opentimestamps.v1",
+                                           "User-Agent": "SalomonEarningsDesk/1.0"})
+                if r.status_code == 200 and r.content:
+                    os.makedirs(OTS_DIR, exist_ok=True)
+                    with open(os.path.join(OTS_DIR, f"batch-{n}.{name}.ots"), "wb") as f:
+                        f.write(_OTS_HEADER + digest + r.content)
+                    got.append(name)
+            except Exception:
+                pass
+        if got:
+            row = {"batch": n, "sha256": digest.hex(), "calendars": got,
+                   "stamped_at": datetime.now(ET).isoformat(timespec="seconds")}
+            _append(ANCHOR_FILE, row)
+            out.append(row)
+    return out
+
+
+def proof(batch_no: int) -> dict | None:
+    """One batch line + its receipts, for 'verify it yourself'."""
+    lines = batch_lines()
+    if not 1 <= batch_no <= len(lines):
+        return None
+    import base64
+    rec = {}
+    for name in OTS_CALENDARS:
+        path = os.path.join(OTS_DIR, f"batch-{batch_no}.{name}.ots")
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                rec[name] = base64.b64encode(f.read()).decode()
+    a = next((x for x in _lines(ANCHOR_FILE) if x["batch"] == batch_no), None)
+    return {"batch": batch_no, "line": lines[batch_no - 1].decode(),
+            "sha256": hashlib.sha256(lines[batch_no - 1]).hexdigest(),
+            "stamped_at": a and a["stamped_at"], "ots_b64": rec}
 
 
 def frozen_calls() -> list[dict]:
@@ -184,16 +253,19 @@ def public_view(days_back: int = 14) -> dict:
         g = grades.get((c["symbol"], c["earnings_date"]))
         row = {k: c[k] for k in ("symbol", "earnings_date", "prediction",
                                  "confidence", "frozen_at", "batch_hash")}
+        eps = {"eps_actual": g.get("eps_actual"), "eps_estimate": g.get("eps_estimate")} if g else {}
         if g and excluded(g):
             row |= {"result": g["outcome"], "surprise_pct": g["surprise_pct"],
-                    "excluded": True, "excluded_reason": MISMATCH_REASON}
+                    "excluded": True, "excluded_reason": MISMATCH_REASON} | eps
         elif g:
             row |= {"result": g["outcome"], "correct": g["correct"],
-                    "surprise_pct": g["surprise_pct"]}
+                    "surprise_pct": g["surprise_pct"]} | eps
         calls.append(row)
     calls.sort(key=lambda c: (c["earnings_date"], c["symbol"]))
     ok, chain = verify()
+    anchors = [{k: a[k] for k in ("batch", "sha256", "stamped_at")} for a in _lines(ANCHOR_FILE)]
     return {"calls": calls, "scorecard": scorecard(), "chain_ok": ok, "chain": chain,
+            "anchors": anchors,
             "method": "Each call is appended once, before its report, to a sha256-chained "
                       "log; graded after the report: BEAT if actual EPS >= estimate.",
             "generated_at": datetime.now(ET).isoformat(timespec="seconds")}
@@ -276,8 +348,12 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "show"
     if cmd == "freeze":
         new = freeze()
+        stamped = anchor() if new else []
         print(f"{datetime.now(ET):%Y-%m-%d %H:%M} froze {len(new)} calls: "
-              + ", ".join(f"{c['symbol']} {c['prediction']}" for c in new))
+              + ", ".join(f"{c['symbol']} {c['prediction']}" for c in new)
+              + (f" | stamped batch {', '.join(str(a['batch']) for a in stamped)}" if stamped else ""))
+    elif cmd == "anchor":
+        print(anchor())
     elif cmd == "grade":
         new = grade()
         print(f"{datetime.now(ET):%Y-%m-%d %H:%M} graded {len(new)}: "
