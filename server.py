@@ -1074,7 +1074,8 @@ def _make_greeting():
             today = et_today().isoformat()
             reported = [{"symbol": r.get("symbol"), "result": r.get("outcome")}
                         for r in (feed.get("recent_results") or [])
-                        if r.get("reported") and r.get("earnings_date", "") >= today][:6]
+                        if r.get("reported") and r.get("earnings_date", "") >= today
+                        and not r.get("data_check")][:6]   # not-counted results stay out
             facts = {"scorecard": fz.get("scorecard"), "graded_misses": misses,
                      "graded_right": [c["symbol"] for c in graded if c["correct"]][-6:],
                      "calls_waiting": len(fz["calls"]) - len(graded),
@@ -1110,9 +1111,19 @@ def _make_greeting():
         return data
 
 
-def chat(user_messages):
+VOICE_CALL_NOTE = ("This is a live voice call: your answer is read aloud. Answer in 2 to 4 "
+                   "short spoken sentences, no lists, no markdown, no links, no tickers spelled "
+                   "letter by letter when the company name is known. Round money to cents. "
+                   "Still end with the Follow-ups line.")
+
+
+def chat(user_messages, voice=False):
     """Run the tool-calling loop; return (answer, sources, model_display, followups)."""
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT},
+                # The model can't know the date; it once called Wed Oct 28 a Tuesday.
+                {"role": "system", "content": f"Today is {et_today():%A, %B %-d, %Y} in New York."}]
+    if voice:
+        messages.append({"role": "system", "content": VOICE_CALL_NOTE})
     # Only accept simple text turns from the browser, cap history.
     for m in user_messages[-12:]:
         if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str):
@@ -1394,7 +1405,7 @@ class Handler(SimpleHTTPRequestHandler):
             messages = payload.get("messages")
             if not isinstance(messages, list) or not messages:
                 return self.send_json(400, {"error": "Please type a question first."})
-            answer, sources, model_display, followups = chat(messages)
+            answer, sources, model_display, followups = chat(messages, voice=bool(payload.get("voice")))
             return self.send_json(200, {
                 "answer": answer,
                 "followups": followups,

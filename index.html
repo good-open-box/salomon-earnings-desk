@@ -98,7 +98,30 @@
     padding:9px 14px;font:600 14px/1.3 var(--font);cursor:pointer;min-height:40px;text-align:left;
     transition:border-color .2s,background-color .2s;touch-action:manipulation}
   .chip:hover{border-color:var(--brand)}
-  .mini.speak{margin-left:auto}
+  .mini.callbtn{margin-left:auto;color:var(--brand2);border-color:rgba(16,185,129,.45)}
+  .mini.callbtn svg{width:15px;height:15px}
+  .callscreen{position:fixed;inset:0;z-index:60;background:radial-gradient(700px 500px at 50% 30%,rgba(16,185,129,.22),transparent 60%),#05080E;
+    display:grid;place-items:center;color:#EEF2F8;
+    padding:max(20px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(20px,env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
+  .call-box{width:100%;max-width:460px;display:grid;justify-items:center;gap:14px;text-align:center}
+  .call-top{margin:0;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9AA6BA}
+  .orb{width:150px;height:150px;border-radius:50%;border:0;cursor:pointer;display:grid;place-items:center;
+    background:radial-gradient(circle at 35% 30%,#6EE7B7,#10B981 45%,#065F46);box-shadow:0 0 0 0 rgba(16,185,129,.5);transition:transform .2s}
+  .orb span{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.25)}
+  .callscreen[data-state="listening"] .orb{animation:breathe 1.6s ease-in-out infinite}
+  .callscreen[data-state="hearing"] .orb{transform:scale(1.08);box-shadow:0 0 0 18px rgba(16,185,129,.18)}
+  .callscreen[data-state="thinking"] .orb{animation:spin 1.2s linear infinite;background:conic-gradient(#10B981,#38BDF8,#10B981)}
+  .callscreen[data-state="speaking"] .orb{animation:talk .5s ease-in-out infinite alternate}
+  @keyframes breathe{50%{box-shadow:0 0 0 22px rgba(16,185,129,0)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes talk{to{transform:scale(1.06)}}
+  .call-state{margin:0;font-size:20px;font-weight:800}
+  .call-cap{margin:0;font-size:15px;color:#B6C0D0;max-height:7.5em;overflow:auto;line-height:1.5}
+  .call-cap.bot{color:#EEF2F8}
+  .call-hint{margin:0;font-size:12.5px;color:#8D99AE}
+  .btn.hang{background:#E11D48;color:#fff;min-width:160px}
+  .btn.hang:hover{background:#F43F5E}
+  .mini.speak{margin-left:0}
   .mini.speak.on{color:var(--brand2);border-color:var(--brand)}
   .mini.speak svg{width:15px;height:15px}
   .verify{display:grid;gap:10px;font-size:13px;color:var(--muted);padding-top:4px}
@@ -240,6 +263,8 @@
 
   @media (max-width:640px){
     .top .pill{display:none}
+    .card-h .speak-txt{display:none}
+    .card-h .mini{padding:0 9px}
     .top{gap:8px}
     .share-txt{display:none}
     #share-top{min-width:44px;padding:8px 10px}
@@ -268,6 +293,7 @@
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
   <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol>
   <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></symbol>
 </svg>
@@ -299,6 +325,7 @@
       <div class="card-h">
         <span class="ico"><svg class="i"><use href="#i-chat"/></svg></span>
         <h2 id="chat-h">Ask the desk</h2>
+        <button class="mini callbtn" id="call-start" type="button" hidden aria-label="Call the desk: talk hands-free"><svg class="i"><use href="#i-phone"/></svg><span>Call the desk</span></button>
         <button class="mini speak" id="speak" type="button" hidden aria-pressed="false" aria-label="Read answers aloud"><svg class="i"><use href="#i-speaker"/></svg><span class="speak-txt">Voice off</span></button>
       </div>
       <div class="watch" id="watch" hidden aria-label="Your watchlist"><span class="lbl">Your watchlist</span></div>
@@ -386,6 +413,18 @@
         </ol>
       </section>
     </aside>
+  </div>
+
+  <div class="callscreen" id="call" hidden role="dialog" aria-modal="true" aria-labelledby="call-h">
+    <div class="call-box">
+      <p class="call-top" id="call-h">On a call with the Salomon Earnings Desk</p>
+      <button class="orb" id="call-orb" type="button" aria-label="Tap to interrupt or to finish speaking"><span></span></button>
+      <p class="call-state" id="call-state" aria-live="polite">Connecting…</p>
+      <p class="call-cap" id="call-you"></p>
+      <p class="call-cap bot" id="call-bot"></p>
+      <p class="call-hint">Talk naturally. Pause when you're done. Tap the circle to interrupt.</p>
+      <button class="btn hang" id="call-end" type="button">Hang up</button>
+    </div>
   </div>
 
   <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-h">
@@ -728,6 +767,122 @@ if (canSpeak) {
     paintSpeak();
     if (speakOn) speak('Voice on. I will read my answers out loud.'); else speechSynthesis.cancel();
   };
+}
+
+// ── Call the desk: hands-free back-and-forth (listen → transcribe → answer → speak) ──
+const callEl = document.getElementById('call');
+const callState = document.getElementById('call-state');
+let call = null;
+function setCall(state, label) { callEl.dataset.state = state; callState.textContent = label; if (call) call.state = state; }
+function speakThen(text, done) {
+  if (!canSpeak) { setTimeout(done, 300); return; }
+  speechSynthesis.cancel();
+  const clean = plain(text).replace(/Not financial advice.*$/i, 'Not financial advice.');
+  const parts = clean.match(/[^.!?]+[.!?]*/g) || [clean];   // sentence by sentence: long utterances stall in some browsers
+  let finished = false;
+  const finish = () => { if (!finished) { finished = true; clearTimeout(guard); done(); } };
+  const guard = setTimeout(finish, clean.split(/\s+/).length * 450 + 4000);
+  parts.forEach((t, i) => {
+    const u = new SpeechSynthesisUtterance(t.trim()); u.rate = 1.04; u.lang = 'en-US';
+    if (i === parts.length - 1) { u.onend = finish; u.onerror = finish; }
+    speechSynthesis.speak(u);
+  });
+}
+async function startCall() {
+  if (call) return;
+  try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch {}   // unlock speech on this tap
+  callEl.hidden = false; setCall('thinking', 'Connecting…');
+  document.getElementById('call-you').textContent = ''; document.getElementById('call-bot').textContent = '';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}});
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(4096, 1, 1);
+    call = {stream, ctx, src, proc, chunks: [], state: 'thinking', turns: 0, idle: 0};
+    proc.onaudioprocess = e => onCallAudio(e.inputBuffer.getChannelData(0));
+    src.connect(proc); proc.connect(ctx.destination);
+    setCall('speaking', 'Salomon');
+    const hello = "Hi, you're through to the Salomon Earnings Desk. What would you like to know?";
+    document.getElementById('call-bot').textContent = hello;
+    speakThen(hello, listen);
+  } catch (e) {
+    setCall('thinking', 'Microphone not available');
+    setTimeout(endCall, 2000);
+  }
+}
+function listen() {
+  if (!call) return;
+  call.chunks = []; call.heard = false; call.quiet = 0; call.floor = 0; call.frames = 0;
+  call.started = Date.now();
+  setCall('listening', 'Listening…');
+}
+function onCallAudio(buf) {
+  if (!call || (call.state !== 'listening' && call.state !== 'hearing')) return;
+  let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  const rms = Math.sqrt(sum / buf.length);
+  call.frames++;
+  if (call.frames <= 4) { call.floor = Math.max(call.floor, rms); return; }     // ~0.35 s of room noise
+  const thr = Math.max(0.018, call.floor * 2.5);
+  const secs = buf.length / call.ctx.sampleRate;
+  call.chunks.push(new Float32Array(buf));
+  if (rms > thr) { call.heard = true; call.quiet = 0; if (call.state !== 'hearing') setCall('hearing', 'Go on…'); }
+  else if (call.heard) call.quiet += secs;
+  const elapsed = (Date.now() - call.started) / 1000;
+  if (call.heard && (call.quiet > 1.2 || elapsed > 15)) finishTurn();
+  else if (!call.heard && elapsed > 8) {
+    call.idle++;
+    if (call.idle >= 2) { setCall('speaking', 'Salomon'); speakThen("I'll hang up for now. Talk soon.", endCall); }
+    else { setCall('speaking', 'Salomon'); speakThen("I'm still here. Ask me about any company's earnings.", listen); }
+  }
+}
+async function finishTurn() {
+  if (!call || call.state === 'thinking') return;
+  setCall('thinking', 'Thinking…');
+  call.idle = 0;
+  const wav = encodeWav(call.chunks, call.ctx.sampleRate);
+  try {
+    const tr = await fetch('/api/transcribe', {method: 'POST', headers: {'Content-Type': 'audio/wav'}, body: wav});
+    const t = await tr.json();
+    if (!tr.ok) throw new Error(t.error || 'transcribe');
+    const q = (t.text || '').trim();
+    if (!q) { setCall('speaking', 'Salomon'); speakThen("Sorry, I didn't catch that. Could you say it again?", listen); return; }
+    document.getElementById('call-you').textContent = '“' + q + '”';
+    addRow('user').textContent = q;
+    history.push({role: 'user', content: q});
+    const r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                       body: JSON.stringify({messages: history, voice: true})});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'chat');
+    history.push({role: 'assistant', content: d.answer});
+    renderAnswer(addRow('bot'), d.answer);
+    if (!call) return;
+    document.getElementById('call-bot').textContent = plain(d.answer);
+    call.turns++;
+    setCall('speaking', 'Salomon');
+    speakThen(d.answer, call.turns >= 20 ? endCall : listen);
+  } catch (e) {
+    if (!call) return;
+    setCall('speaking', 'Salomon');
+    const msg = /limit|enough|too many/i.test(e.message) ? e.message : "Sorry, I lost the line for a second. Try again.";
+    speakThen(msg, /limit|enough|too many/i.test(e.message) ? endCall : listen);
+  }
+}
+function endCall() {
+  if (!call) { callEl.hidden = true; return; }
+  const c = call; call = null;
+  try { speechSynthesis.cancel(); } catch {}
+  try { c.proc.disconnect(); c.src.disconnect(); c.stream.getTracks().forEach(t => t.stop()); c.ctx.close(); } catch {}
+  callEl.hidden = true;
+}
+document.getElementById('call-end').onclick = endCall;
+document.getElementById('call-orb').onclick = () => {
+  if (!call) return;
+  if (call.state === 'speaking') { speechSynthesis.cancel(); listen(); }
+  else if (call.state === 'hearing') finishTurn();
+};
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && call) endCall(); });
+if (canSpeak && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext)) {
+  const cb = document.getElementById('call-start'); cb.hidden = false; cb.onclick = startCall;
 }
 
 async function showGreeting() {
