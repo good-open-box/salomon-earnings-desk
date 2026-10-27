@@ -237,6 +237,15 @@ Rules you must follow:
   includes the sample size and average surprise when known, e.g. "beat estimates
   in 4 of the last 4 quarters, by about 4% on average"); otherwise say "beat
   rate" with the percentage. Show EPS estimates rounded to cents, e.g. $2.41.
+- When asked to explain Salomon's call on a company ("why", "explain the call"),
+  call get_earnings with its symbol and get_frozen_calls, then answer in three
+  short parts with these bold labels:
+  **Why Salomon expects it** (the beat rate with its sample, the average surprise,
+  the options-market mood if given), **What would prove it wrong** (the exact
+  EPS estimate it must clear, or fail to clear, in plain words), and **Track
+  record** (whether this call is locked in the frozen ledger and when, plus how
+  the company did against estimates recently). Stay descriptive: never say
+  what to buy or sell.
 - Salomon's own track record comes ONLY from get_frozen_calls: quote its
   scorecard exactly (e.g. "3 of 4 graded calls correct"), say how many calls are
   still waiting for their report, and never claim a record beyond it.
@@ -483,6 +492,9 @@ def fetch_salomon(name, symbol=""):
                 "avg_surprise_pct": p.get("avg_surprise_pct"),
                 "beat_rate_display": beat_display(p),
                 "eps_estimate": round_cents(p.get("eps_estimate")),
+                # Options-market mood before the report (bullish / bearish /
+                # neutral): one of the reasons behind the call, for "why".
+                "options_flow_mood": p.get("flow_sentiment") or None,
             }
             dedup = (row["symbol"], row["earnings_date"])
             if dedup not in seen:
@@ -725,7 +737,19 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/frozen":
             # The scorecard panel: cached like every Salomon read (no model call).
             try:
-                return self.send_json(200, frozen_compact(salomon_get("/api/intel/frozen")))
+                data = frozen_compact(salomon_get("/api/intel/frozen"))
+                # Why fewer calls are locked than companies reporting: calls lock
+                # 7 days before each report (earnings_freeze.HORIZON_DAYS).
+                try:
+                    feed = salomon_get("/api/intel/earnings")
+                    data["coverage"] = {
+                        "reporting_next_14_days": sum(
+                            1 for p in feed.get("predictions") or []
+                            if 0 <= (p.get("days_away") or 0) <= 14),
+                        "lock_days_before_report": 7}
+                except Exception:
+                    pass
+                return self.send_json(200, data)
             except Exception as exc:
                 print(f"frozen panel: {exc}")
                 return self.send_json(502, {"error": "Frozen calls are unavailable right now."})

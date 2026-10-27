@@ -32,6 +32,7 @@
       --shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px -20px rgba(15,23,42,.18);color-scheme:light}
   }
   *{box-sizing:border-box}
+  [hidden]{display:none !important}
   html{-webkit-text-size-adjust:100%}
   body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.55;
     -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
@@ -55,7 +56,7 @@
     border:1px solid rgba(16,185,129,.28);padding:3px 9px;border-radius:999px;white-space:nowrap}
   .top .sp{flex:1}
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 16px;
-    border-radius:12px;font:700 15px/1 var(--font);text-decoration:none;cursor:pointer;border:1px solid transparent;
+    border-radius:12px;font:700 15px/1 var(--font);white-space:nowrap;text-decoration:none;cursor:pointer;border:1px solid transparent;
     transition:background-color .2s,border-color .2s,color .2s}
   .btn.primary{background:var(--brand);color:var(--brand-ink)}
   .btn.primary:hover{background:var(--brand2)}
@@ -157,6 +158,21 @@
   #fz-proof{margin:8px 0 0;font-size:12px;color:var(--faint);overflow-wrap:anywhere}
   #fz-proof code{font-family:var(--mono);color:var(--muted)}
 
+  .cov{margin:0;padding:0 18px 10px;font-size:13px;color:var(--faint)}
+  .fz-sec{margin:0;padding:12px 18px 4px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .fz-list li .ft{grid-column:2/4;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .fz-list li .ft .st{flex:1 1 100%;min-width:0}
+  .mini{font:700 12.5px/1 var(--font);min-height:32px;padding:0 10px;border-radius:9px;border:1px solid var(--line2);
+    background:transparent;color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .mini:hover{border-color:var(--brand)}
+  .mini.on{color:var(--inline);border-color:var(--inline)}
+  .share-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .watch{display:flex;gap:8px;align-items:center;padding:14px 18px 0;flex-wrap:wrap}
+  .watch .lbl{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .chip.w{border-color:var(--inline);font-family:var(--mono);font-weight:500}
+  .meta .src{font-weight:700;color:var(--muted)}
+  .btn.ghost.sm{min-height:40px;padding:8px 12px;font-size:14px}
+
   /* CTA */
   .cta-card{padding:20px 18px;background:
     linear-gradient(var(--card),var(--card)) padding-box,
@@ -175,6 +191,10 @@
 
   @media (max-width:640px){
     .top .pill{display:none}
+    .top{gap:8px}
+    .share-txt{display:none}
+    #share-top{min-width:44px;padding:8px 10px}
+    .top .btn.primary{padding:10px 14px}
     .chat{min-height:0}
     #chat{max-height:none;min-height:200px}
     .chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
@@ -198,6 +218,7 @@
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></symbol>
 </svg>
 
@@ -208,6 +229,7 @@
     </a>
     <span class="pill">Earnings Desk</span>
     <span class="sp"></span>
+    <button class="btn ghost sm" id="share-top" type="button" aria-label="Share this page"><svg class="i"><use href="#i-share"/></svg><span class="share-txt">Share</span></button>
     <a class="btn primary" data-event="signup" href="https://slmn.trade/register?utm_source=earnings_desk">Start free</a>
   </nav>
 
@@ -219,7 +241,7 @@
     <ul class="trust">
       <li><svg class="i"><use href="#i-lock"/></svg>Calls locked before every report</li>
       <li><svg class="i"><use href="#i-shield"/></svg>Read-only, never trades</li>
-      <li><svg class="i"><use href="#i-eye"/></svg>Sources on every answer</li>
+      <li><svg class="i"><use href="#i-eye"/></svg>Data source shown on every answer</li>
     </ul>
   </header>
 
@@ -230,6 +252,7 @@
         <h2 id="chat-h">Ask the desk</h2>
         <span class="sub">Type or tap the mic</span>
       </div>
+      <div class="watch" id="watch" hidden aria-label="Your watchlist"><span class="lbl">Your watchlist</span></div>
       <div class="chips" id="chips" aria-label="Suggested questions"></div>
       <main id="chat" aria-live="polite"></main>
       <div id="status" role="status"></div>
@@ -256,9 +279,14 @@
           <div class="stat"><b id="st-graded">··</b><span>Graded</span></div>
           <div class="stat"><b id="st-correct">··</b><span>Correct</span></div>
         </div>
+        <p class="cov" id="fz-cov"></p>
+        <h3 class="fz-sec" id="fz-graded-h" hidden>Graded calls, misses first</h3>
+        <ul id="fz-graded" class="fz-list"></ul>
+        <h3 class="fz-sec">Locked, waiting for the report</h3>
         <ul id="fz-list" class="fz-list"></ul>
         <div class="fz-foot">
-          <details id="fz-more" hidden><summary>Show all frozen calls</summary><ul id="fz-all" class="fz-list"></ul></details>
+          <details id="fz-more" hidden><summary>Show all locked calls</summary><ul id="fz-all" class="fz-list"></ul></details>
+          <div class="share-row"><button class="btn ghost sm" id="share-score" type="button"><svg class="i"><use href="#i-share"/></svg>Share the scorecard</button></div>
           <p id="fz-proof"></p>
         </div>
       </section>
@@ -338,6 +366,65 @@ function addRow(who) {
   return msg;
 }
 
+// What each live data tool is, in words a reader can check.
+const SOURCE_NAMES = {
+  get_earnings: 'Salomon AI earnings data (reported EPS: Finnhub)',
+  get_frozen_calls: 'Salomon frozen-calls ledger',
+  get_summary: 'Salomon AI market summary',
+  get_macro: 'Salomon AI market regime',
+  get_signals: 'Salomon AI stock signals',
+  get_whale: 'Salomon AI large-trade tracker',
+  get_ports: 'Salomon AI shipping tracker (port data)',
+  get_airspace: 'Salomon AI airspace tracker',
+  get_p2p: 'Salomon AI peer-to-peer tracker',
+};
+
+// Watchlist: saved in this browser only.
+const WATCH_KEY = 'salomon_desk_watch';
+function getWatch() { try { return JSON.parse(localStorage.getItem(WATCH_KEY) || '[]'); } catch { return []; } }
+function setWatch(list) { try { localStorage.setItem(WATCH_KEY, JSON.stringify(list)); } catch {} renderWatch(); }
+function toggleWatch(sym) {
+  const w = getWatch();
+  setWatch(w.includes(sym) ? w.filter(x => x !== sym) : [...w, sym].slice(-12));
+  document.querySelectorAll('.mini.star[data-sym="' + sym + '"]').forEach(b => paintStar(b, sym));
+}
+function paintStar(b, sym) {
+  const on = getWatch().includes(sym);
+  b.classList.toggle('on', on);
+  b.textContent = on ? '★ Watching' : '☆ Watch';
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+function ask(q) { input.value = q; form.requestSubmit(); }
+function renderWatch() {
+  const box = document.getElementById('watch');
+  box.querySelectorAll('.chip').forEach(c => c.remove());
+  const w = getWatch();
+  box.hidden = !w.length;
+  w.forEach(sym => {
+    const b = el('button', 'chip w', sym); b.type = 'button';
+    b.setAttribute('aria-label', 'Ask about ' + sym);
+    b.onclick = () => ask("What's Salomon's latest on " + sym + "'s earnings?");
+    box.appendChild(b);
+  });
+}
+
+// Share: the phone's share sheet, or copy the link.
+async function share(text) {
+  const url = 'https://desk.slmn.trade';
+  try {
+    if (navigator.share) { await navigator.share({title: 'Salomon AI Earnings Desk', text, url}); return; }
+    await navigator.clipboard.writeText(text + ' ' + url);
+    statusEl.textContent = 'Link copied. Paste it anywhere to share.';
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    statusEl.textContent = 'Share this link: ' + url;
+  }
+  setTimeout(() => { statusEl.textContent = ''; }, 4000);
+}
+let shareText = 'Earnings season in plain words, with every call locked before the report and graded after.';
+document.getElementById('share-top').onclick = () => share(shareText);
+document.getElementById('share-score').onclick = () => share(shareText);
+
 const SUGGESTIONS = [
   "Who reports earnings this week?",
   "Will Boeing beat earnings?",
@@ -348,9 +435,10 @@ const SUGGESTIONS = [
 const chips = document.getElementById('chips');
 SUGGESTIONS.forEach(q => {
   const b = el('button', 'chip', q); b.type = 'button';
-  b.onclick = () => { input.value = q; form.requestSubmit(); };
+  b.onclick = () => ask(q);
   chips.appendChild(b);
 });
+renderWatch();
 
 async function checkHealth() {
   const dot = document.getElementById('dot'), txt = document.getElementById('live-text');
@@ -386,8 +474,10 @@ form.addEventListener('submit', async (e) => {
     wait.textContent = '';
     renderAnswer(wait, d.answer);
     const meta = el('div', 'meta');
-    [...new Set((d.sources || []).map(s => s.tool.replace(/^get_/, '').replace(/_/g, ' ') +
-        (s.symbol ? ' · ' + s.symbol : '')))].forEach(s => meta.appendChild(el('span', 'tag', s)));
+    const labels = [...new Set((d.sources || []).map(s => (SOURCE_NAMES[s.tool] ||
+        s.tool.replace(/^get_/, '').replace(/_/g, ' ')) + (s.symbol ? ' · ' + s.symbol : '')))];
+    if (labels.length) meta.appendChild(el('span', 'src', 'Source:'));
+    labels.forEach(s => meta.appendChild(el('span', 'tag', s)));
     meta.appendChild(el('span', '', new Date(d.answered_at_utc).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})));
     wait.appendChild(meta);
     statusEl.textContent = '';
@@ -415,12 +505,25 @@ function callRow(c) {
   const p = String(c.prediction || '').toUpperCase();
   const cls = p === 'BEAT' ? 'b-beat' : p === 'MISS' ? 'b-miss' : 'b-inline';
   li.appendChild(el('span', 'badge ' + cls, p === 'IN-LINE' ? 'In line' : p === 'BEAT' ? 'Beat' : 'Miss'));
+  const ft = el('div', 'ft');
   if ('correct' in c) {
-    li.appendChild(el('span', 'st ' + (c.correct ? 'ok' : 'bad'),
-      (c.correct ? 'Correct' : 'Wrong') + ': reported a ' + String(c.result || '').toLowerCase()));
+    const sp = c.surprise_pct == null ? '' : ' (' + (c.surprise_pct >= 0 ? '+' : '') + c.surprise_pct + '% vs estimate)';
+    ft.appendChild(el('span', 'st ' + (c.correct ? 'ok' : 'bad'),
+      (c.correct ? 'Right' : 'Wrong') + ': it reported a ' + String(c.result || '').toLowerCase() + sp));
   } else {
-    li.appendChild(el('span', 'st', 'Waiting for the report'));
+    ft.appendChild(el('span', 'st', 'Waiting for the report'));
   }
+  const why = el('button', 'mini', 'Why?'); why.type = 'button';
+  why.setAttribute('aria-label', "Explain Salomon's call on " + c.symbol);
+  why.onclick = () => {
+    ask("Explain Salomon's call on " + c.symbol + ": why it expects this, what would prove it wrong, and its track record.");
+    document.getElementById('chat-h').scrollIntoView({behavior: 'smooth', block: 'start'});
+  };
+  const star = el('button', 'mini star'); star.type = 'button'; star.dataset.sym = c.symbol;
+  paintStar(star, c.symbol);
+  star.onclick = () => toggleWatch(c.symbol);
+  ft.append(why, star);
+  li.appendChild(ft);
   return li;
 }
 async function loadFrozen() {
@@ -430,8 +533,11 @@ async function loadFrozen() {
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'unavailable');
     const calls = d.calls || [], sc = d.scorecard || {};
-    const graded = calls.filter(c => 'correct' in c).reverse();
-    const upcoming = calls.filter(c => !('correct' in c));
+    // Misses first, so the calls Salomon got wrong are never buried.
+    const graded = calls.filter(c => 'correct' in c)
+      .sort((a, b) => (a.correct - b.correct) || String(b.earnings_date).localeCompare(String(a.earnings_date)));
+    const upcoming = calls.filter(c => !('correct' in c))
+      .sort((a, b) => String(a.earnings_date).localeCompare(String(b.earnings_date)));
     document.getElementById('st-locked').textContent = calls.length;
     document.getElementById('st-graded').textContent = sc.graded || 0;
     document.getElementById('st-correct').textContent = sc.graded ? sc.correct : 0;
@@ -446,13 +552,23 @@ async function loadFrozen() {
       big.appendChild(el('small', '', 'calls locked'));
       score.textContent = 'First grades land after the next reports. Nothing can be changed after it is locked.';
     }
+    const gl = document.getElementById('fz-graded');
+    graded.forEach(c => gl.appendChild(callRow(c)));
+    document.getElementById('fz-graded-h').hidden = !graded.length;
     const list = document.getElementById('fz-list');
-    [...graded, ...upcoming].slice(0, 6).forEach(c => list.appendChild(callRow(c)));
-    if (calls.length > 6) {
+    upcoming.slice(0, 4).forEach(c => list.appendChild(callRow(c)));
+    if (upcoming.length > 4) {
       const all = document.getElementById('fz-all');
-      [...graded, ...upcoming].slice(6).forEach(c => all.appendChild(callRow(c)));
+      upcoming.slice(4).forEach(c => all.appendChild(callRow(c)));
       document.getElementById('fz-more').hidden = false;
     }
+    const cov = d.coverage;
+    if (cov && cov.reporting_next_14_days) {
+      document.getElementById('fz-cov').textContent =
+        `${cov.reporting_next_14_days} companies report in the next 14 days. A call locks ` +
+        `${cov.lock_days_before_report} days before its report, so ${upcoming.length} are locked now and the rest lock as their dates get closer.`;
+    }
+    if (sc.graded) shareText = `Salomon AI locks its earnings calls before each report: ${sc.correct} of ${sc.graded} graded calls right so far, misses shown.`;
     const first = calls.find(c => c.fingerprint);
     const proof = document.getElementById('fz-proof');
     proof.append('Tamper check ' + d.tamper_check + '. ');
