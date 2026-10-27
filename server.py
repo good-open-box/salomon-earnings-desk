@@ -5,6 +5,7 @@ Stdlib-only on purpose: no pip installs, nothing to break on demo day.
 Serves the page, runs Muse Spark tool-calling over the read-only Salomon AI data
 API, and turns voice into text with Muse Voice Transcribe. Keys are never logged.
 """
+import base64
 import json
 import os
 import re
@@ -44,6 +45,8 @@ CACHE_SECONDS = _env_int("CACHE_SECONDS", 600)
 STATS_KEY = os.environ.get("STATS_KEY", "")
 VOICE_MODEL = os.environ.get("VOICE_MODEL", "muse-voice-transcribe-1.0")
 VOICE_DAY = _env_int("VOICE_DAY", 500)
+IMAGE_MODEL = os.environ.get("IMAGE_MODEL", "muse-image-1.0")
+IMAGE_DAY = _env_int("IMAGE_DAY", 4)          # share-card art: one a day, a few retries
 VOICE_MAX_BYTES = _env_int("VOICE_MAX_BYTES", 1_000_000)   # ~30 s of 16 kHz mono WAV
 FROZEN_SECONDS = _env_int("FROZEN_SECONDS", 300)
 
@@ -283,6 +286,45 @@ def read_key(env_name, file_path):
     except OSError:
         pass
     return ""
+
+
+# Share-card art (Muse Image): one background a day, shared by every visitor.
+# The scorecard numbers are drawn on top by the page, never by the image model.
+SHARE_ART_PROMPTS = (
+    "Wide abstract background for a finance scorecard card: deep navy night, faint emerald "
+    "green ledger grid lines and a soft rising line chart glow on the right side, subtle "
+    "padlock geometry, calm and premium, empty dark space on the left half. "
+    "No text, no letters, no numbers, no logos.",
+    "Wide abstract background: deep navy with a soft emerald glow on the right, thin glowing "
+    "lines like a sealed ledger chain of linked blocks, gentle depth, empty dark space on the "
+    "left half for text. No text, no letters, no numbers, no logos.",
+)
+_share_art = {"day": "", "bytes": None}
+_share_art_lock = threading.Lock()
+
+
+def share_art():
+    """(bytes, content_type) for today's card art, or (None, None) if unavailable."""
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with _share_art_lock:
+        if _share_art["day"] == day and _share_art["bytes"]:
+            return _share_art["bytes"], "image/webp"
+        key = read_key("META_API_KEY", META_KEY_FILE)
+        if not key or not counters.take("share_art", IMAGE_DAY):
+            return _share_art["bytes"], "image/webp" if _share_art["bytes"] else None
+        prompt = SHARE_ART_PROMPTS[int(day[-2:]) % len(SHARE_ART_PROMPTS)]
+        try:
+            d = http_json(META_BASE + "/images/generations",
+                          headers={"Authorization": f"Bearer {key}"},
+                          payload={"model": IMAGE_MODEL, "prompt": prompt, "n": 1,
+                                   "size": "1536x1024"}, timeout=120)
+            img = base64.b64decode(d["data"][0]["b64_json"])
+            if not img.startswith(b"RIFF"):
+                raise ValueError("not a webp image")
+            _share_art.update(day=day, bytes=img)
+        except Exception as exc:
+            print(f"share art: {exc}")
+        return _share_art["bytes"], "image/webp" if _share_art["bytes"] else None
 
 
 def http_json(url, *, headers=None, payload=None, timeout=30):
@@ -727,6 +769,17 @@ class Handler(SimpleHTTPRequestHandler):
             counters.add("page_views")
             self.path = "/index.html"
             return super().do_GET()
+        if path == "/api/share-art":
+            img, ctype = share_art()
+            if not img:
+                return self.send_json(503, {"error": "Card art is unavailable right now."})
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(img)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(img)
+            return
         if path == "/api/health":
             keys_ok = bool(read_key("SALOMON_API_KEY", SALOMON_KEY_FILE)) and (
                 bool(read_key("BASETEN_API_KEY", BASETEN_KEY_FILE))

@@ -98,6 +98,7 @@
     padding:9px 14px;font:600 14px/1.3 var(--font);cursor:pointer;min-height:40px;text-align:left;
     transition:border-color .2s,background-color .2s;touch-action:manipulation}
   .chip:hover{border-color:var(--brand)}
+  .greet-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
   .row.user{justify-content:flex-end}
@@ -172,6 +173,13 @@
   .chip.w{border-color:var(--inline);font-family:var(--mono);font-weight:500}
   .meta .src{font-weight:700;color:var(--muted)}
   .btn.ghost.sm{min-height:40px;padding:8px 12px;font-size:14px}
+
+  .sheet{position:fixed;inset:0;z-index:50;background:rgba(4,8,14,.72);display:grid;place-items:center;
+    padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+  .sheet-box{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;max-width:640px;width:100%;display:grid;gap:12px}
+  .sheet-box img{width:100%;height:auto;border-radius:12px;display:block}
+  .sheet-box p{margin:0;font-size:14px;color:var(--muted)}
+  .sheet-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 
   /* CTA */
   .cta-card{padding:20px 18px;background:
@@ -306,6 +314,18 @@
     </aside>
   </div>
 
+  <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+    <div class="sheet-box">
+      <h3 id="sheet-h" style="margin:0;font-size:16px;font-weight:800">Your scorecard card</h3>
+      <img id="sheet-img" alt="Salomon AI scorecard card">
+      <p>Press and hold the image to save it, then post it with the link desk.slmn.trade.</p>
+      <div class="sheet-row">
+        <button class="btn ghost sm" id="sheet-copy" type="button">Copy link</button>
+        <button class="btn primary" id="sheet-close" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
   <footer>
     <span>For information only. Not financial advice. The Earnings Desk is read-only and never places trades or moves money.</span>
     <span>© 2026 Salomon AI Inc.</span>
@@ -423,12 +443,106 @@ async function share(text) {
 }
 let shareText = 'Earnings season in plain words, with every call locked before the report and graded after.';
 document.getElementById('share-top').onclick = () => share(shareText);
-document.getElementById('share-score').onclick = () => share(shareText);
+document.getElementById('share-score').onclick = () => shareCard();
+
+// ── Share card: today's art (made by the image model) + the exact scorecard, drawn here ──
+let cardData = null;   // set by loadFrozen
+function loadImg(src) {
+  return new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = src; });
+}
+async function drawCard() {
+  const W = 1200, H = 630, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#0A0F1E'; g.fillRect(0, 0, W, H);
+  try {
+    const art = await loadImg('/api/share-art');
+    const sc = Math.max(W / art.width, H / art.height);
+    g.drawImage(art, (W - art.width * sc) / 2, (H - art.height * sc) / 2, art.width * sc, art.height * sc);
+  } catch {
+    const rg = g.createRadialGradient(W * .8, H * .4, 20, W * .8, H * .4, 600);
+    rg.addColorStop(0, 'rgba(16,185,129,.45)'); rg.addColorStop(1, 'rgba(16,185,129,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  }
+  const shade = g.createLinearGradient(0, 0, W * .75, 0);
+  shade.addColorStop(0, 'rgba(6,10,20,.92)'); shade.addColorStop(1, 'rgba(6,10,20,0)');
+  g.fillStyle = shade; g.fillRect(0, 0, W, H);
+  try { await Promise.all(['800 150px Manrope', '700 44px Manrope', '500 26px Manrope', '500 24px "JetBrains Mono"']
+                          .map(f => document.fonts.load(f))); } catch {}
+  // Logo mark from the page's own symbol.
+  const sym = document.getElementById('i-logo');
+  g.save(); g.translate(64, 52); g.scale(0.2, 0.2); g.translate(-290, -80);
+  g.fillStyle = '#00FF88';
+  sym.querySelectorAll('path').forEach(pth => g.fill(new Path2D(pth.getAttribute('d'))));
+  sym.querySelectorAll('polygon').forEach(pg => g.fill(new Path2D('M' + pg.getAttribute('points') + 'Z')));
+  g.restore();
+  g.fillStyle = '#EEF2F8'; g.font = '700 30px Manrope, sans-serif'; g.textBaseline = 'alphabetic';
+  g.fillText('Salomon AI  ·  Earnings Desk', 122, 92);
+  const d = cardData || {};
+  if (d.graded) {
+    g.fillStyle = '#34D399'; g.font = '800 150px Manrope, sans-serif';
+    g.fillText(`${d.correct} of ${d.graded}`, 60, 290);
+    g.fillStyle = '#EEF2F8'; g.font = '700 44px Manrope, sans-serif';
+    g.fillText('earnings calls right so far', 64, 352);
+  } else {
+    g.fillStyle = '#34D399'; g.font = '800 150px Manrope, sans-serif';
+    g.fillText(String(d.locked || ''), 60, 290);
+    g.fillStyle = '#EEF2F8'; g.font = '700 44px Manrope, sans-serif';
+    g.fillText('earnings calls locked', 64, 352);
+  }
+  g.fillStyle = '#B6C0D0'; g.font = '500 26px Manrope, sans-serif';
+  g.fillText('Each call is locked before the report and graded after.', 64, 404);
+  g.fillText('Misses are shown, never hidden.', 64, 440);
+  // Graded tickers, misses first.
+  let x = 64;
+  g.font = '500 24px "JetBrains Mono", monospace';
+  (d.rows || []).slice(0, 6).forEach(r => {
+    const label = r.symbol + (r.correct ? ' ✓' : ' ✗');
+    const w = g.measureText(label).width + 28;
+    g.fillStyle = r.correct ? 'rgba(16,185,129,.18)' : 'rgba(244,63,94,.20)';
+    g.beginPath(); g.roundRect ? g.roundRect(x, 478, w, 44, 22) : g.rect(x, 478, w, 44); g.fill();
+    g.fillStyle = r.correct ? '#34D399' : '#FB7185';
+    g.fillText(label, x + 14, 508);
+    x += w + 10;
+  });
+  g.fillStyle = '#34D399'; g.font = '700 28px Manrope, sans-serif';
+  g.fillText('desk.slmn.trade', 64, 582);
+  g.fillStyle = '#8D99AE'; g.font = '500 20px Manrope, sans-serif';
+  g.fillText('Not financial advice.', W - 260, 582);
+  return new Promise(ok => c.toBlob(ok, 'image/png'));
+}
+async function shareCard() {
+  const btn = document.getElementById('share-score');
+  btn.disabled = true; statusEl.textContent = 'Making your card…';
+  try {
+    const blob = await drawCard();
+    const file = new File([blob], 'salomon-earnings-scorecard.png', {type: 'image/png'});
+    statusEl.textContent = '';
+    if (navigator.canShare && navigator.canShare({files: [file]})) {
+      try { await navigator.share({files: [file], text: shareText + ' https://desk.slmn.trade'}); }
+      catch (e) { if (e.name !== 'AbortError') throw e; }
+    } else {
+      const img = document.getElementById('sheet-img');
+      if (img.src) URL.revokeObjectURL(img.src);
+      img.src = URL.createObjectURL(blob);
+      document.getElementById('sheet').hidden = false;
+    }
+  } catch (e) {
+    share(shareText);
+  } finally { btn.disabled = false; }
+}
+document.getElementById('sheet-close').onclick = () => { document.getElementById('sheet').hidden = true; };
+document.getElementById('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.target.hidden = true; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('sheet').hidden = true; });
+document.getElementById('sheet-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText('https://desk.slmn.trade'); document.getElementById('sheet-copy').textContent = 'Copied'; }
+  catch { document.getElementById('sheet-copy').textContent = 'desk.slmn.trade'; }
+};
 
 const SUGGESTIONS = [
   "Who reports earnings this week?",
+  "Was Salomon right about Sherwin-Williams?",
   "Will Boeing beat earnings?",
-  "Is NVDA likely to beat?",
   "Was Salomon right so far?",
   "What's the market doing today?"
 ];
@@ -451,7 +565,67 @@ async function checkHealth() {
 }
 checkHealth();
 
-renderAnswer(addRow('bot'), "Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what Salomon expects for a company, or how its locked calls have scored so far.");
+const GREETING = "Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what Salomon expects for a company, or how its locked calls have scored so far.";
+const GREET_REPLIES = [
+  ['Who reports this week', 'Who reports earnings this week?'],
+  ['What Salomon expects', 'What does Salomon expect for the companies reporting next?'],
+  ['How the locked calls scored', 'How have the locked calls scored so far? Include the misses.'],
+];
+let greetingReady = false;
+let pendingFollow = null;
+function replyButtons(pairs) {
+  const box = el('div', 'greet-actions');
+  pairs.forEach(([label, q]) => {
+    const b = el('button', 'chip', label);
+    b.type = 'button';
+    b.onclick = () => ask(q);
+    box.appendChild(b);
+  });
+  return box;
+}
+function paintGreeting(msg) {
+  renderAnswer(msg, GREETING);
+  msg.appendChild(replyButtons(GREET_REPLIES));
+}
+function showGreeting() {
+  const msg = addRow('bot');
+  const paint = () => {
+    msg.textContent = '';
+    paintGreeting(msg);
+    greetingReady = true;
+    if (pendingFollow && !history.length) pendingFollow();
+    pendingFollow = null;
+  };
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (still) { paint(); return; }
+  const dots = el('span', 'typing');
+  dots.append(el('span'), el('span'), el('span'));
+  msg.appendChild(dots);
+  setTimeout(paint, 650);
+}
+function followGreeting(sc, graded, upcoming) {
+  if (history.length) return;
+  const run = () => {
+    if (history.length || document.getElementById('greet-live')) return;
+    const miss = graded.find(c => !c.correct);
+    const next = upcoming[0];
+    let line = sc.graded
+      ? `So far ${sc.correct} of ${sc.graded} graded calls are right.`
+      : `${upcoming.length} calls are locked and still waiting for their report.`;
+    if (miss) line += ' ' + (miss.symbol === 'SHW' ? 'Sherwin-Williams' : miss.symbol) + ' was the miss.';
+    if (next) line += ' Next up is ' + next.symbol + '.';
+    const msg = addRow('bot');
+    msg.parentElement.id = 'greet-live';
+    renderAnswer(msg, line);
+    const replies = [];
+    if (miss) replies.push(['Ask about the miss', 'Was Salomon right about ' + (miss.symbol === 'SHW' ? 'Sherwin-Williams' : miss.symbol) + '?']);
+    if (next) replies.push(['What Salomon expects for ' + next.symbol, "What does Salomon expect for " + next.symbol + "'s earnings?"]);
+    if (replies.length) msg.appendChild(replyButtons(replies));
+  };
+  if (greetingReady) run();
+  else pendingFollow = run;
+}
+showGreeting();
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -492,6 +666,17 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ── Frozen calls & scorecard ────────────────────────────────────────────────
+function bookLine(calls) {
+  const n = (name) => calls.filter(c => String(c.prediction || '').toUpperCase() === name).length;
+  const parts = [];
+  const beats = n('BEAT'), misses = n('MISS'), inline = n('IN-LINE');
+  if (beats) parts.push(beats + (beats === 1 ? ' beat call' : ' beat calls'));
+  if (misses) parts.push(misses + (misses === 1 ? ' miss call' : ' miss calls'));
+  if (inline) parts.push(inline + (inline === 1 ? ' in-line call' : ' in-line calls'));
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0] + ' locked.';
+  return parts.slice(0, -1).join(', ') + ' and ' + parts.at(-1) + ' are locked.';
+}
 function shortDate(iso) {
   const d = new Date(iso + 'T12:00:00');
   return isNaN(d) ? iso : d.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'});
@@ -543,14 +728,16 @@ async function loadFrozen() {
     document.getElementById('st-correct').textContent = sc.graded ? sc.correct : 0;
     const big = document.getElementById('fz-big');
     big.textContent = '';
+    const book = bookLine(calls);
     if (sc.graded) {
-      big.append(String(Math.round(sc.pct)) + '%');
-      big.appendChild(el('small', '', 'right'));
-      score.textContent = `${sc.correct} of ${sc.graded} graded calls correct. ${upcoming.length} still waiting for their report.`;
+      big.append(sc.correct + ' of ' + sc.graded);
+      big.appendChild(el('small', '', 'graded'));
+      score.textContent = Math.round(sc.pct) + '% right. ' + upcoming.length +
+        ' still waiting for their report. ' + book;
     } else {
       big.append(String(calls.length));
       big.appendChild(el('small', '', 'calls locked'));
-      score.textContent = 'First grades land after the next reports. Nothing can be changed after it is locked.';
+      score.textContent = 'First grades land after the next reports. Nothing can be changed after it is locked. ' + book;
     }
     const gl = document.getElementById('fz-graded');
     graded.forEach(c => gl.appendChild(callRow(c)));
@@ -568,6 +755,8 @@ async function loadFrozen() {
         `${cov.reporting_next_14_days} companies report in the next 14 days. A call locks ` +
         `${cov.lock_days_before_report} days before its report, so ${upcoming.length} are locked now and the rest lock as their dates get closer.`;
     }
+    cardData = {graded: sc.graded || 0, correct: sc.correct || 0, locked: calls.length,
+                rows: graded.map(c => ({symbol: c.symbol, correct: c.correct}))};
     if (sc.graded) shareText = `Salomon AI locks its earnings calls before each report: ${sc.correct} of ${sc.graded} graded calls right so far, misses shown.`;
     const first = calls.find(c => c.fingerprint);
     const proof = document.getElementById('fz-proof');
@@ -577,7 +766,9 @@ async function loadFrozen() {
       proof.appendChild(el('code', '', first.fingerprint));
       proof.append(', locked ' + new Date(first.frozen_at).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}) + '. ');
     }
-    proof.append('A beat means actual EPS at or above the estimate. Not financial advice.');
+    proof.append('A beat means actual EPS at or above the estimate. Not financial advice. ');
+    proof.append('Voice is Muse Voice Transcribe. Answers are Muse Spark, with Muse Spark 1.3 as the backup.');
+    followGreeting(sc, graded, upcoming);
   } catch (e) {
     score.textContent = 'Frozen calls are unavailable right now.';
   }

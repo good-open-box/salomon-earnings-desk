@@ -19,6 +19,7 @@ the real result. The public scorecard can only show what was actually called.
 | **Muse Spark Open** (open weights) | Main model. Tool-calling over the live data feed for every answer |
 | **Muse Spark 1.3** (Meta Model API) | Automatic backup when the main model errors or times out (daily-capped) |
 | **Muse Voice Transcribe 1.0** (Meta Model API) | "Ask by voice": the browser records 16 kHz WAV, `/v1/asr/transcribe` turns it into the question |
+| **Muse Image 1.0** (Meta Model API) | Art for the shareable scorecard card: one new background a day, with the real scorecard numbers drawn on top by the page |
 | **Muse Wonder** | Coding model for the build session that wrote the first version of this app |
 
 ## Built during the hackathon vs. what existed before
