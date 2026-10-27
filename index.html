@@ -132,6 +132,9 @@
   .gm-nick{display:flex;gap:8px;margin-top:10px}
   .gm-nick input{min-height:40px;font-size:15px}
   .gm-more summary{cursor:pointer;color:var(--brand2);font-weight:700;font-size:14px;padding:8px 18px;min-height:40px;display:flex;align-items:center}
+  .mnote{grid-column:2/4;font-size:13px;color:var(--muted)}
+  .mnote summary{cursor:pointer;color:var(--miss);font-weight:700;min-height:32px;display:flex;align-items:center}
+  .mnote p{margin:2px 0 4px;line-height:1.5}
   .gm-rules{margin:10px 0 0;font-size:12px;color:var(--faint)}
   .greet-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
@@ -840,6 +843,12 @@ function callRow(c) {
   star.onclick = () => toggleWatch(c.symbol);
   ft.append(why, star);
   li.appendChild(ft);
+  if (c.miss_note) {
+    const det = el('details', 'mnote');
+    det.appendChild(el('summary', '', 'What I got wrong'));
+    det.appendChild(el('p', '', c.miss_note));
+    li.appendChild(det);
+  }
   return li;
 }
 // Outside proof: each locked batch, its public timestamp receipt, and the archive.

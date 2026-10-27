@@ -231,6 +231,8 @@ Rules you must follow:
 - If a call or result is marked not counted (a data mismatch), say so plainly:
   Salomon does not count it as right or wrong because the reported and expected
   figures appear to be different earnings measures.
+- If a frozen call has a 'what_salomon_got_wrong' note, quote it when the user
+  asks about that miss or about Salomon's mistakes.
 - Never show raw data field names (such as salomon_was_right or recent_results)
   to the user; say it in plain words ("Salomon was right").
 - If a tool returns no data, errors, or does not cover the question, say so plainly.
@@ -698,6 +700,134 @@ def game_nick(device, nick):
     return 200, {"ok": True}
 
 
+# ── "What I got wrong" (step 5) ────────────────────────────────────────────────
+# A short note for every graded miss, written once by the model from the real
+# numbers only, then saved. Every number in the note must appear in the facts,
+# or a plain fact-only note is used instead.
+MISS_NOTES_DAY = _env_int("MISS_NOTES_DAY", 20)
+_NUM_RE = re.compile(r"-?\d+(?:,\d{3})*(?:\.\d+)?")
+
+
+def _miss_facts(c):
+    r = {}
+    try:
+        feed = salomon_get(f"/api/intel/earnings?symbol={c['symbol']}")
+        r = next((x for x in feed.get("recent_results") or []
+                  if x.get("earnings_date") == c["earnings_date"]), {}) or {}
+    except Exception:
+        pass
+    bn = lambda v: round(v / 1e9, 2) if isinstance(v, (int, float)) else None
+    f = {"symbol": c["symbol"], "report_date": c["earnings_date"],
+         "salomon_called": c.get("prediction"), "confidence": c.get("confidence"),
+         "result": c.get("result"), "surprise_pct": c.get("surprise_pct"),
+         "eps_actual": round_cents(r.get("eps_actual")), "eps_estimate": round_cents(r.get("eps_estimate")),
+         "revenue_actual_billion": bn(r.get("revenue_actual")),
+         "revenue_estimate_billion": bn(r.get("revenue_estimate"))}
+    if f["revenue_actual_billion"] and f["revenue_estimate_billion"]:
+        f["revenue_vs_estimate"] = "above" if f["revenue_actual_billion"] >= f["revenue_estimate_billion"] else "below"
+    return {k: v for k, v in f.items() if v is not None}
+
+
+def _fact_note(f):
+    word = {"BEAT": "a beat", "MISS": "a miss", "IN-LINE": "an in-line result"}
+    out = (f"I called {word.get(f.get('salomon_called'), 'it')} ({str(f.get('confidence', '')).lower()} confidence). "
+           f"{f['symbol']} reported {word.get(f.get('result'), 'a different result')}")
+    if "eps_actual" in f and "eps_estimate" in f:
+        out += f": ${f['eps_actual']:.2f} a share against ${f['eps_estimate']:.2f} expected ({f.get('surprise_pct')}%)"
+    out += "."
+    if f.get("revenue_vs_estimate"):
+        out += f" Revenue came in {f['revenue_vs_estimate']} estimates (${f['revenue_actual_billion']}B vs ${f['revenue_estimate_billion']}B)."
+    return out
+
+
+def _numbers_ok(note, facts):
+    vals = []
+    for v in facts.values():
+        if isinstance(v, (int, float)):
+            vals += [float(v), abs(float(v))]
+    for d in re.findall(r"\d{4}-\d{2}-\d{2}", json.dumps(facts)):
+        vals += [float(x) for x in d.split("-")]
+    for tok in _NUM_RE.findall(note.replace("$", "")):
+        x = float(tok.replace(",", ""))
+        if not any(abs(abs(x) - abs(v)) < 0.011 for v in vals):
+            return False
+    return True
+
+
+def write_miss_note(c):
+    facts = _miss_facts(c)
+    note = ""
+    if counters.take("miss_notes", MISS_NOTES_DAY):
+        try:
+            res, _ = call_model([
+                {"role": "system", "content":
+                    "You are Salomon, writing a short honest note about an earnings call you got "
+                    "wrong. 2 or 3 sentences, under 70 words, first person. Say what you called and "
+                    "what actually happened with the exact numbers given (write beat/miss in lower case, "
+                "dollars as $1.23, no dates), then one plain observation "
+                    "that follows directly from the numbers (for example how small or large the miss "
+                    "was, or whether revenue went the same way). Use ONLY the facts given; do not "
+                    "guess at reasons, do not mention news, guidance or management, no advice, no "
+                    "markdown, no follow-up questions."},
+                {"role": "user", "content": json.dumps(facts, separators=(",", ":"))}], tools=False)
+            note = extract_text(((res.get("choices") or [{}])[0].get("message") or {}).get("content"))
+            note, _ = split_followups(note)
+            note = note.replace("**", "").strip()
+        except Exception as exc:
+            print(f"miss note {c['symbol']}: {exc}")
+    if not (30 <= len(note) <= 500 and _numbers_ok(note, facts)
+            and not re.search(r"(?i)\b(buy|sell|guidance|management|news)\b", note)):
+        note = _fact_note(facts)
+    return note
+
+
+def miss_notes():
+    """{(symbol, date): note} for graded misses; writes any missing ones."""
+    calls = _ledger_calls()
+    wrong = [c for c in calls if c.get("correct") is False]
+    with _db_lock:
+        con = db()
+        con.execute("CREATE TABLE IF NOT EXISTS notes(symbol TEXT, earnings_date TEXT, note TEXT, "
+                    "created_at TEXT, PRIMARY KEY(symbol, earnings_date))")
+        have = {(a, b): n for a, b, n in con.execute("SELECT symbol, earnings_date, note FROM notes")}
+        con.commit()
+        con.close()
+    for c in wrong:
+        key = (c["symbol"], c["earnings_date"])
+        if key in have:
+            continue
+        note = write_miss_note(c)
+        with _db_lock:
+            con = db()
+            con.execute("INSERT OR IGNORE INTO notes VALUES(?,?,?,?)",
+                        (*key, note, datetime.now(timezone.utc).isoformat(timespec="seconds")))
+            con.commit()
+            con.close()
+        have[key] = note
+        print(f"miss note written: {key}")
+    return have
+
+
+def miss_notes_loop():
+    while True:
+        try:
+            miss_notes()
+        except Exception as exc:
+            print(f"miss notes: {exc}")
+        time.sleep(1200)
+
+
+def _saved_notes():
+    try:
+        with _db_lock:
+            con = db()
+            rows = list(con.execute("SELECT symbol, earnings_date, note FROM notes"))
+            con.close()
+        return {(a, b): n for a, b, n in rows}
+    except sqlite3.Error:
+        return {}
+
+
 def recent_row(r):
     """A company that already reported: Salomon's pre-report call vs the result."""
     call = {"BEAT": "called a beat", "MISS": "called a miss",
@@ -798,6 +928,11 @@ def fetch_salomon(name, symbol=""):
             recent_list.pop()
     if name == "get_frozen_calls" and isinstance(data, dict):
         data = frozen_compact(data)
+        notes = _saved_notes()
+        for c in data["calls"]:
+            n = notes.get((c["symbol"], c["earnings_date"]))
+            if n:
+                c["what_salomon_got_wrong"] = n
     if name != "get_earnings":
         data = scrub_tool_data(data)
     text = json.dumps(data, separators=(",", ":"))
@@ -1142,6 +1277,10 @@ class Handler(SimpleHTTPRequestHandler):
             # The scorecard panel: cached like every Salomon read (no model call).
             try:
                 data = frozen_compact(salomon_get("/api/intel/frozen"))
+                notes = _saved_notes()
+                for c in data["calls"]:
+                    if (c["symbol"], c["earnings_date"]) in notes:
+                        c["miss_note"] = notes[(c["symbol"], c["earnings_date"])]
                 # Why fewer calls are locked than companies reporting: calls lock
                 # 7 days before each report (earnings_freeze.HORIZON_DAYS).
                 try:
@@ -1296,6 +1435,8 @@ if __name__ == "__main__":
         os.setuid(10001)
     if DEMO_ENABLED:   # write the first welcome before the first visitor arrives
         threading.Thread(target=_make_greeting, daemon=True).start()
+    if DEMO_ENABLED:
+        threading.Thread(target=miss_notes_loop, daemon=True).start()
     if ARCHIVE_ENABLED and DEMO_ENABLED:
         threading.Thread(target=archive_loop, daemon=True).start()
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
