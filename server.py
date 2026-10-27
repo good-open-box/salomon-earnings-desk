@@ -173,7 +173,9 @@ SALOMON_TOOLS = {
     "get_earnings": ("/api/intel/earnings",
                      "Companies reporting earnings in the next 14 days, with beat rate and conviction. "
                      "When the question is about a specific company, pass its ticker as 'symbol' — "
-                     "that lookup includes its next report even if it is more than 14 days away."),
+                     "that lookup includes its next report even if it is more than 14 days away, "
+                     "and its latest result if it reported in the last 14 days (what Salomon "
+                     "called before the report, what actually happened, and whether it was right)."),
     "get_ideas": ("/api/intel/ideas",
                   "Option ideas. Always label 'not advice' and 'track record: not measured'."),
     "get_whale": ("/api/intel/whale",
@@ -207,6 +209,14 @@ Rules you must follow:
   That check looks further ahead than 14 days, so answer with its next report date
   and expectations when the tool returns them — never say a company has no earnings
   coming up just because its date is more than 14 days away.
+- If a company already reported, get_earnings gives its result under
+  'recent_results' (short list: 'recently_reported'; look the company up by
+  symbol for the full row): say what Salomon called before the report ('salomon_call'),
+  what actually happened (EPS actual vs estimate, surprise %), and whether the
+  call was right. Use these for that one company only; never add them up into a
+  track record (that comes only from get_frozen_calls).
+- Never show raw data field names (such as salomon_was_right or recent_results)
+  to the user; say it in plain words ("Salomon was right").
 - If a tool returns no data, errors, or does not cover the question, say so plainly.
 - Explain in plain language a non-expert can follow. Show the key numbers.
 - Keep answers concise: a short lead sentence, then bullets if helpful.
@@ -427,6 +437,26 @@ def frozen_compact(data):
             "method": data.get("method"), "generated_at": data.get("generated_at")}
 
 
+def recent_row(r):
+    """A company that already reported: Salomon's pre-report call vs the result."""
+    call = {"BEAT": "called a beat", "MISS": "called a miss",
+            "IN-LINE": "called an in-line result"}.get(str(r.get("prediction") or "").upper())
+    row = {"symbol": r.get("symbol"), "reported_on": r.get("earnings_date"),
+           "salomon_call": call or "no call made before the report",
+           "confidence": r.get("confidence") if call else None,
+           "locked_in_frozen_ledger": bool(r.get("frozen"))}
+    if r.get("reported"):
+        row.update({"result": r.get("outcome"),
+                    "eps_actual": round_cents(r.get("eps_actual")),
+                    "eps_estimate": round_cents(r.get("eps_estimate")),
+                    "surprise_pct": r.get("surprise_pct")})
+        if call and "call_correct" in r:
+            row["salomon_was_right"] = bool(r["call_correct"])
+    else:
+        row["result"] = "not published yet"
+    return row
+
+
 def fetch_salomon(name, symbol=""):
     endpoint, _ = SALOMON_TOOLS[name]
     data = salomon_get(endpoint)
@@ -459,6 +489,7 @@ def fetch_salomon(name, symbol=""):
                 seen.add(dedup)
                 rows.append(row)
         rows.sort(key=lambda r: (r.get("days_away") is None, r.get("days_away") or 0))
+        recent = [recent_row(r) for r in data.get("recent_results") or []]
         symbol = (symbol or "").strip().upper()
         if symbol:
             # Specific-company questions (e.g. NVDA reporting Nov 17) must still
@@ -468,27 +499,46 @@ def fetch_salomon(name, symbol=""):
                 "symbol": symbol,
                 "earnings_for_symbol": [r for r in rows
                                         if (r.get("symbol") or "").upper() == symbol],
+                "recent_results": [r for r in recent
+                                   if (r.get("symbol") or "").upper() == symbol],
                 "generated_at": data.get("generated_at"),
                 "note": "Specific-company lookup: includes the next report even "
                         "if it is more than 14 days away.",
             }
         else:
             data = {
-                "reporting_next_14_days": [r for r in rows
-                                           if (r.get("days_away") or 0) <= 14],
+                # The ~70-company list ran past the 14k cap and got cut off, so the
+                # list drops fields already worded in salomon_outlook and
+                # beat_rate_display; the symbol lookup keeps every field.
+                "reporting_next_14_days": [
+                    {k: r[k] for k in ("symbol", "earnings_date", "days_away",
+                                       "salomon_outlook", "beat_rate_display",
+                                       "eps_estimate") if r.get(k) not in (None, "")}
+                    for r in rows if (r.get("days_away") or 0) <= 14],
+                # Short form keeps the prompt under the size cap; the symbol
+                # lookup gives the full call-vs-result row.
+                "recently_reported": [{k: r.get(k) for k in ("symbol", "reported_on", "result",
+                                                             "surprise_pct")} for r in recent],
                 "generated_at": data.get("generated_at"),
                 "note": "This list covers the next 14 days only. If the user asked "
                         "about a specific company that is not listed, call "
                         "get_earnings again with that company's symbol to check "
                         "further ahead before saying there is no data.",
             }
+        # Busy weeks: shorten the recently-reported list (oldest first) before
+        # the hard cap below would cut the upcoming list.
+        recent_list = data.get("recently_reported")
+        while recent_list and len(json.dumps(data, separators=(",", ":"))) > 19000:
+            recent_list.pop()
     if name == "get_frozen_calls" and isinstance(data, dict):
         data = frozen_compact(data)
     if name != "get_earnings":
         data = scrub_tool_data(data)
     text = json.dumps(data, separators=(",", ":"))
-    if len(text) > 14000:  # keep the model prompt lean and fast
-        text = text[:14000] + " …[truncated]"
+    # Keep the model prompt lean and fast. 20k (~5k tokens) fits the full
+    # 14-day list plus recent results; 14k used to cut the list off mid-way.
+    if len(text) > 20000:
+        text = text[:20000] + " …[truncated]"
     return text
 
 
