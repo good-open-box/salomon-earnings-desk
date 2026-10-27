@@ -101,6 +101,38 @@
   .mini.speak{margin-left:auto}
   .mini.speak.on{color:var(--brand2);border-color:var(--brand)}
   .mini.speak svg{width:15px;height:15px}
+  .verify{display:grid;gap:10px;font-size:13px;color:var(--muted);padding-top:4px}
+  .verify ol{margin:0;padding-left:18px;display:grid;gap:4px}
+  .verify .vb{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+  .verify .vb b{color:var(--text);font-size:13px}
+  .verify a{font-weight:700;text-decoration:none}
+  .gm-top{padding:14px 18px 4px;display:grid;gap:10px}
+  .gm-pitch{margin:0;font-size:14.5px;color:var(--muted)}
+  .gm-pitch b{color:var(--text)}
+  .gm-score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;text-align:center;
+    background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px}
+  .gm-score b{display:block;font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+  .gm-score span{font-size:12px;color:var(--faint);font-weight:600}
+  .gm-score .vs{font-size:12px;font-weight:800;color:var(--faint);text-transform:uppercase}
+  .gm-news{margin:0;font-size:13.5px;font-weight:700;color:var(--brand2)}
+  .gm-list li{grid-template-columns:auto 1fr auto}
+  .gm-empty{display:block !important;color:var(--faint);font-size:13.5px}
+  .gm-picks{display:flex;gap:6px}
+  .gm-btn{font:800 13px/1 var(--font);min-height:38px;min-width:58px;padding:0 10px;border-radius:10px;cursor:pointer;
+    border:1px solid var(--line2);background:var(--card2);color:var(--text)}
+  .gm-btn.beat:hover{border-color:var(--brand);color:var(--brand2)}
+  .gm-btn.miss:hover{border-color:var(--miss);color:var(--miss)}
+  .gm-btn:disabled{opacity:.5;cursor:wait}
+  .gm-bar{grid-column:2/4;height:6px;border-radius:99px;background:var(--miss-soft);overflow:hidden}
+  .gm-bar i{display:block;height:100%;background:var(--brand)}
+  .gm-note{grid-column:2/4;font-size:12.5px;color:var(--faint);font-weight:600}
+  .gm-note b{color:var(--text)}
+  .gm-board{margin:0;padding-left:22px;display:grid;gap:4px;font-size:14px}
+  .gm-board li span{color:var(--faint);font-variant-numeric:tabular-nums;margin-left:6px}
+  .gm-nick{display:flex;gap:8px;margin-top:10px}
+  .gm-nick input{min-height:40px;font-size:15px}
+  .gm-more summary{cursor:pointer;color:var(--brand2);font-weight:700;font-size:14px;padding:8px 18px;min-height:40px;display:flex;align-items:center}
+  .gm-rules{margin:10px 0 0;font-size:12px;color:var(--faint)}
   .greet-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
@@ -232,6 +264,7 @@
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
   <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></symbol>
 </svg>
@@ -278,6 +311,38 @@
     </section>
 
     <aside class="side">
+      <section class="card game" aria-labelledby="game-h">
+        <div class="card-h">
+          <span class="ico"><svg class="i"><use href="#i-target"/></svg></span>
+          <h2 id="game-h">You vs Salomon</h2>
+          <span class="sub" id="gm-players"></span>
+        </div>
+        <div class="gm-top">
+          <p class="gm-pitch">Can you beat the AI? Pick <b>Beat</b> or <b>Miss</b> before each report. Your pick locks, then both get graded on the real result.</p>
+          <div class="gm-score" id="gm-score" hidden>
+            <div><b id="gm-you">0/0</b><span>You</span></div>
+            <div class="vs">vs</div>
+            <div><b id="gm-sal">0/0</b><span>Salomon, same calls</span></div>
+          </div>
+          <p class="gm-news" id="gm-news" hidden></p>
+        </div>
+        <h3 class="fz-sec">Open picks</h3>
+        <ul class="fz-list gm-list" id="gm-open"><li class="gm-empty">Loading…</li></ul>
+        <details class="gm-more" id="gm-more" hidden><summary id="gm-more-s">More picks</summary><ul class="fz-list gm-list" id="gm-open2"></ul></details>
+        <h3 class="fz-sec" id="gm-res-h" hidden>Your results</h3>
+        <ul class="fz-list gm-list" id="gm-res"></ul>
+        <div class="fz-foot gm-foot">
+          <h3 class="fz-sec" style="padding:0 0 6px">Leaderboard</h3>
+          <ol class="gm-board" id="gm-board"></ol>
+          <form id="gm-nick-form" class="gm-nick" hidden>
+            <label class="visually-hidden" for="gm-nick">Your leaderboard name</label>
+            <input id="gm-nick" maxlength="16" autocomplete="off" placeholder="Your leaderboard name">
+            <button class="btn ghost sm" type="submit">Save</button>
+          </form>
+          <div class="share-row"><button class="btn ghost sm" id="gm-share" type="button" hidden><svg class="i"><use href="#i-share"/></svg>Share my score</button></div>
+          <p class="gm-rules" id="gm-rules"></p>
+        </div>
+      </section>
       <section class="card" aria-labelledby="frozen-h">
         <div class="card-h">
           <span class="ico"><svg class="i"><use href="#i-lock"/></svg></span>
@@ -301,6 +366,7 @@
           <details id="fz-more" hidden><summary>Show all locked calls</summary><ul id="fz-all" class="fz-list"></ul></details>
           <div class="share-row"><button class="btn ghost sm" id="share-score" type="button"><svg class="i"><use href="#i-share"/></svg>Share the scorecard</button></div>
           <p id="fz-proof"></p>
+          <details id="fz-verify" hidden><summary>Verify it yourself</summary><div id="fz-verify-body" class="verify"></div></details>
         </div>
       </section>
 
@@ -448,7 +514,10 @@ async function share(text) {
 }
 let shareText = 'Earnings season in plain words, with every call locked before the report and graded after.';
 document.getElementById('share-top').onclick = () => share(shareText);
-document.getElementById('share-score').onclick = () => shareCard();
+document.getElementById('share-score').onclick = () => {
+  if (cardData) delete cardData.duel;
+  shareCard();
+};
 
 // ── Share card: today's art (made by the image model) + the exact scorecard, drawn here ──
 let cardData = null;   // set by loadFrozen
@@ -484,6 +553,20 @@ async function drawCard() {
   g.fillStyle = '#EEF2F8'; g.font = '700 30px Manrope, sans-serif'; g.textBaseline = 'alphabetic';
   g.fillText('Salomon AI  ·  Earnings Desk', 122, 92);
   const d = cardData || {};
+  if (d.duel) {
+    g.fillStyle = '#34D399'; g.font = '800 120px Manrope, sans-serif';
+    g.fillText(`${d.duel.you} vs ${d.duel.sal}`, 60, 270);
+    g.fillStyle = '#EEF2F8'; g.font = '700 42px Manrope, sans-serif';
+    g.fillText(`Me vs Salomon's AI, ${d.duel.n} earnings calls`, 64, 340);
+    g.fillStyle = '#B6C0D0'; g.font = '500 26px Manrope, sans-serif';
+    g.fillText('Picks locked before each report, graded on the real result.', 64, 400);
+    g.fillText('Can you beat it?', 64, 436);
+    g.fillStyle = '#34D399'; g.font = '700 28px Manrope, sans-serif';
+    g.fillText('desk.slmn.trade', 64, 582);
+    g.fillStyle = '#8D99AE'; g.font = '500 20px Manrope, sans-serif';
+    g.fillText('Not financial advice.', W - 260, 582);
+    return new Promise(ok => c.toBlob(ok, 'image/png'));
+  }
   if (d.graded) {
     g.fillStyle = '#34D399'; g.font = '800 150px Manrope, sans-serif';
     g.fillText(`${d.correct} of ${d.graded}`, 60, 290);
@@ -516,15 +599,15 @@ async function drawCard() {
   g.fillText('Not financial advice.', W - 260, 582);
   return new Promise(ok => c.toBlob(ok, 'image/png'));
 }
-async function shareCard() {
-  const btn = document.getElementById('share-score');
+async function shareCard(text) {
+  const btn = document.getElementById(text ? 'gm-share' : 'share-score');
   btn.disabled = true; statusEl.textContent = 'Making your card…';
   try {
     const blob = await drawCard();
     const file = new File([blob], 'salomon-earnings-scorecard.png', {type: 'image/png'});
     statusEl.textContent = '';
     if (navigator.canShare && navigator.canShare({files: [file]})) {
-      try { await navigator.share({files: [file], text: shareText + ' https://desk.slmn.trade'}); }
+      try { await navigator.share({files: [file], text: (text || shareText) + ' https://desk.slmn.trade'}); }
       catch (e) { if (e.name !== 'AbortError') throw e; }
     } else {
       const img = document.getElementById('sheet-img');
@@ -533,7 +616,7 @@ async function shareCard() {
       document.getElementById('sheet').hidden = false;
     }
   } catch (e) {
-    share(shareText);
+    share(text || shareText);
   } finally { btn.disabled = false; }
 }
 document.getElementById('sheet-close').onclick = () => { document.getElementById('sheet').hidden = true; };
@@ -759,6 +842,166 @@ function callRow(c) {
   li.appendChild(ft);
   return li;
 }
+// Outside proof: each locked batch, its public timestamp receipt, and the archive.
+function renderVerify(calls, anchors) {
+  const box = document.getElementById('fz-verify-body');
+  box.textContent = '';
+  const fmt = iso => new Date(iso).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'});
+  const p = el('p', '', "You don't have to trust Salomon. Each locked batch of calls is stamped by OpenTimestamps, a free public service anchored in the Bitcoin blockchain, and dated copies of this ledger are kept by the Internet Archive. Neither can be changed afterwards, by anyone.");
+  p.style.margin = '0';
+  const steps = el('ol');
+  ['Download a batch file and its receipt below.',
+   'Open opentimestamps.org and drop both files on the page.',
+   'It shows the time the batch is proven to have existed. Compare it with the report dates of the calls inside.']
+    .forEach(t => steps.appendChild(el('li', '', t)));
+  box.append(p, steps);
+  const lockedAt = [...new Set(calls.map(c => c.frozen_at))].sort();
+  anchors.forEach(a => {
+    const row = el('div', 'vb');
+    row.appendChild(el('b', '', 'Batch ' + a.batch));
+    const locked = lockedAt[a.batch - 1];
+    if (locked) row.appendChild(el('span', '', 'locked ' + fmt(locked)));
+    if (a.stamped_at) row.appendChild(el('span', '', 'stamped ' + fmt(a.stamped_at)));
+    row.appendChild(link('', 'Batch file ↓', '/proof/batch-' + a.batch + '.json'));
+    row.appendChild(link('', 'Receipt ↓', '/proof/batch-' + a.batch + '.alice.ots'));
+    if (locked && a.stamped_at && new Date(a.stamped_at) - new Date(locked) > 3600e3)
+      row.appendChild(el('span', '', 'Stamped after it was locked, so it only proves calls reporting after the stamp time.'));
+    box.appendChild(row);
+  });
+  const arch = el('div', 'vb');
+  arch.appendChild(link('', 'Dated copies on the Internet Archive ↗', 'https://web.archive.org/web/*/https://desk.slmn.trade/api/frozen*'));
+  arch.appendChild(link('', 'opentimestamps.org ↗', 'https://opentimestamps.org/'));
+  box.appendChild(arch);
+  document.getElementById('fz-verify').hidden = false;
+}
+
+// ── You vs Salomon ──
+let DEVICE = '';
+try { DEVICE = localStorage.getItem('salomon_desk_device') || ''; } catch {}
+if (!/^[a-z0-9-]{16,40}$/.test(DEVICE)) {
+  const b = new Uint8Array(12); crypto.getRandomValues(b);
+  DEVICE = 'd-' + [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem('salomon_desk_device', DEVICE); } catch {}
+}
+let gameMe = null;
+const callWord = p => p === 'BEAT' ? 'Beat' : p === 'MISS' ? 'Miss' : 'In line';
+function gameRow(c) {
+  const li = el('li');
+  li.appendChild(el('span', 'tk', c.symbol));
+  const when = el('span', 'call', shortDate(c.earnings_date));
+  when.appendChild(el('small', '', 'Salomon says ' + callWord(c.salomon).toLowerCase() +
+    (c.confidence ? ', ' + c.confidence.toLowerCase() + ' confidence' : '')));
+  li.appendChild(when);
+  if (c.mine) {
+    li.appendChild(el('span', 'badge ' + (c.mine.pick === 'BEAT' ? 'b-beat' : 'b-miss'), 'You: ' + callWord(c.mine.pick)));
+    const cr = c.crowd || {BEAT: 0, MISS: 0}, tot = cr.BEAT + cr.MISS;
+    if (tot) {
+      const bar = el('div', 'gm-bar'); const fill = el('i'); fill.style.width = Math.round(cr.BEAT / tot * 100) + '%';
+      bar.appendChild(fill); bar.title = 'Crowd'; li.appendChild(bar);
+    }
+    const note = el('span', 'gm-note');
+    note.append(tot ? `Crowd: ${Math.round(cr.BEAT / tot * 100)}% beat, ${Math.round(cr.MISS / tot * 100)}% miss · ` : '');
+    note.append('locked ' + new Date(c.mine.locked_at).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'}) + ' · receipt ');
+    note.appendChild(el('code', '', c.mine.receipt));
+    li.appendChild(note);
+  } else {
+    const box = el('span', 'gm-picks');
+    ['BEAT', 'MISS'].forEach(p => {
+      const b = el('button', 'gm-btn ' + p.toLowerCase(), callWord(p)); b.type = 'button';
+      b.setAttribute('aria-label', 'Pick ' + callWord(p) + ' for ' + c.symbol);
+      b.onclick = () => makePick(c, p, box);
+      box.appendChild(b);
+    });
+    li.appendChild(box);
+    if (c.pickers) li.appendChild(el('span', 'gm-note', c.pickers + (c.pickers === 1 ? ' person has' : ' people have') + ' picked. Pick to see the crowd.'));
+  }
+  return li;
+}
+async function makePick(c, pick, box) {
+  box.querySelectorAll('button').forEach(b => b.disabled = true);
+  try {
+    const r = await fetch('/api/pick', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({d: DEVICE, symbol: c.symbol, earnings_date: c.earnings_date, pick})});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Pick failed');
+    await loadGame();
+  } catch (e) {
+    statusEl.textContent = e.message;
+    box.querySelectorAll('button').forEach(b => b.disabled = false);
+  }
+}
+async function loadGame() {
+  try {
+    const r = await fetch('/api/game?d=' + encodeURIComponent(DEVICE));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    gameMe = d.me;
+    document.getElementById('gm-players').textContent = d.players ? d.players + (d.players === 1 ? ' player' : ' players') : 'Be the first';
+    const open = document.getElementById('gm-open'); open.textContent = '';
+    const open2 = document.getElementById('gm-open2'); open2.textContent = '';
+    const syms = new Set((d.open || []).map(c => c.symbol));
+    const rows = (d.open || []).filter(c => !(c.symbol === 'GOOG' && syms.has('GOOGL')));  // same company
+    rows.forEach((c, i) => (i < 5 ? open : open2).appendChild(gameRow(c)));
+    document.getElementById('gm-more').hidden = rows.length <= 5;
+    document.getElementById('gm-more-s').textContent = `${rows.length - 5} more picks`;
+    if (!(d.open || []).length) open.appendChild(el('li', 'gm-empty', 'No open picks right now. New calls lock every morning and evening.'));
+    const mineRes = (d.results || []).filter(x => x.mine);
+    const res = document.getElementById('gm-res'); res.textContent = '';
+    mineRes.forEach(x => {
+      const li = el('li');
+      li.appendChild(el('span', 'tk', x.symbol));
+      const t = el('span', 'call', 'Reported a ' + callWord(x.result).toLowerCase());
+      t.appendChild(el('small', '', 'Salomon ' + (x.salomon_right ? 'right' : 'wrong') +
+        (x.crowd_right_pct != null ? ` · crowd ${x.crowd_right_pct}% right` : '')));
+      li.appendChild(t);
+      li.appendChild(el('span', 'badge ' + (x.mine_right ? 'b-beat' : 'b-miss'), x.mine_right ? 'You ✓' : 'You ✗'));
+      res.appendChild(li);
+    });
+    document.getElementById('gm-res-h').hidden = !mineRes.length;
+    const me = d.me || {};
+    document.getElementById('gm-score').hidden = !me.picks;
+    document.getElementById('gm-you').textContent = me.right + '/' + me.graded;
+    document.getElementById('gm-sal').textContent = me.salomon_right_same + '/' + me.graded;
+    // "Since your last visit": newly graded picks.
+    let seen = 0; try { seen = +localStorage.getItem('salomon_desk_seen_graded') || 0; } catch {}
+    const news = document.getElementById('gm-news');
+    if (me.graded > seen) {
+      news.hidden = false;
+      news.textContent = `${me.graded - seen} of your picks got graded since your last visit.`;
+    }
+    try { localStorage.setItem('salomon_desk_seen_graded', String(me.graded || 0)); } catch {}
+    const board = document.getElementById('gm-board'); board.textContent = '';
+    (d.board || []).forEach(b => {
+      const li = el('li', '', b.nick); li.appendChild(el('span', '', `${b.right} of ${b.graded}`)); board.appendChild(li);
+    });
+    if (!(d.board || []).length) board.appendChild(el('li', 'gm-empty', 'Names show here after 3 graded picks.'));
+    const nf = document.getElementById('gm-nick-form');
+    nf.hidden = !me.picks;
+    if (me.nick) document.getElementById('gm-nick').placeholder = 'Name: ' + me.nick;
+    document.getElementById('gm-share').hidden = !me.graded;
+    document.getElementById('gm-rules').textContent = d.rules || '';
+  } catch (e) {
+    const open = document.getElementById('gm-open'); open.textContent = '';
+    open.appendChild(el('li', 'gm-empty', 'The game is unavailable right now.'));
+  }
+}
+document.getElementById('gm-nick-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const v = document.getElementById('gm-nick').value.trim();
+  if (!v) return;
+  const r = await fetch('/api/nick', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({d: DEVICE, nick: v})});
+  const d = await r.json();
+  statusEl.textContent = r.ok ? 'Name saved.' : (d.error || 'Could not save the name.');
+  if (r.ok) { document.getElementById('gm-nick').value = ''; loadGame(); }
+});
+document.getElementById('gm-share').onclick = () => {
+  const me = gameMe || {};
+  cardData = {...(cardData || {}), duel: {you: me.right, sal: me.salomon_right_same, n: me.graded}};
+  shareCard(`I'm ${me.right} of ${me.graded} on earnings calls vs Salomon's AI ${me.salomon_right_same} of ${me.graded}. Can you beat it?`);
+};
+loadGame();
+
 async function loadFrozen() {
   const score = document.getElementById('fz-score');
   try {
@@ -816,8 +1059,8 @@ async function loadFrozen() {
       proof.appendChild(el('code', '', first.fingerprint));
       proof.append(', locked ' + new Date(first.frozen_at).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}) + '. ');
     }
-    proof.append('A beat means actual EPS at or above the estimate. Not financial advice. ');
-    proof.append('Voice is Muse Voice Transcribe. Answers are Muse Spark, with Muse Spark 1.3 as the backup.');
+    proof.append('A beat means actual EPS at or above the estimate. Not financial advice.');
+    renderVerify(calls, d.anchors || []);
   } catch (e) {
     score.textContent = 'Frozen calls are unavailable right now.';
   }

@@ -7,6 +7,10 @@ primary_region = "iad"
   PUBLIC_IDEAS = "0"      # no option contracts on the public page
   DEMO_ENABLED = "1"      # "0" pauses the chat: fly secrets/env change, no code deploy
 
+[mounts]
+  source = "desk_data"       # You vs Salomon picks (SQLite), 1 GB
+  destination = "/data"
+
 [http_service]
   internal_port = 8080
   force_https = true

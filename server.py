@@ -6,12 +6,15 @@ Serves the page, runs Muse Spark tool-calling over the read-only Salomon AI data
 API, and turns voice into text with Muse Voice Transcribe. Keys are never logged.
 """
 import base64
+import hashlib
 import json
 import os
 import re
+import sqlite3
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
@@ -497,8 +500,202 @@ def frozen_compact(data):
             row["status"] = "waiting for report"
         calls.append(row)
     return {"calls": calls, "scorecard": data.get("scorecard"),
+            "anchors": data.get("anchors") or [],
+            "chain_head": str(data.get("chain") or "")[:64],
             "tamper_check": "passed" if data.get("chain_ok") else "FAILED",
             "method": data.get("method"), "generated_at": data.get("generated_at")}
+
+
+# Outside copies (Patrick, Oct 27: "yes archive"): whenever the public ledger
+# changes, ask the Internet Archive to keep a dated copy of /api/frozen that nobody,
+# Salomon included, can edit. Checked every 20 minutes; only changes are sent.
+ARCHIVE_URL = os.environ.get("ARCHIVE_URL", "https://desk.slmn.trade/api/frozen")
+ARCHIVE_ENABLED = os.environ.get("ARCHIVE_ENABLED", "1") == "1"
+_archived = {"state": None}
+
+
+def archive_loop():
+    while True:
+        try:
+            raw = salomon_get("/api/intel/frozen")
+            sc = raw.get("scorecard") or {}
+            state = (str(raw.get("chain"))[:16], sc.get("graded"), sc.get("excluded"))
+            if state != _archived["state"]:
+                time.sleep(15)   # let this server's own cache settle first
+                req = urllib.request.Request("https://web.archive.org/save/" + ARCHIVE_URL,
+                                             headers={"User-Agent": "SalomonEarningsDesk/1.0 (+https://desk.slmn.trade)"})
+                try:
+                    with urllib.request.urlopen(req, timeout=120) as resp:
+                        print(f"archive: saved ledger copy ({resp.status}) state={state}")
+                except urllib.error.HTTPError as exc:
+                    # The Archive often answers anonymous saves with 523 yet keeps the
+                    # copy, so ask it what it has before treating this as a failure.
+                    time.sleep(30)
+                    avail = http_json("https://archive.org/wayback/available?url=" + ARCHIVE_URL, timeout=30)
+                    snap = ((avail.get("archived_snapshots") or {}).get("closest") or {})
+                    age = time.time() - datetime.strptime(snap.get("timestamp", "19700101000000"),
+                                                          "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc).timestamp()
+                    print(f"archive: save answered {exc.code}; latest copy {snap.get('timestamp')} ({int(age)}s old)")
+                    if age > 900:
+                        raise
+                _archived["state"] = state
+        except Exception as exc:
+            print(f"archive: {exc}")
+        time.sleep(1200)
+
+
+# ── You vs Salomon (Patrick, Oct 27: storage approved) ──────────────────────────
+# Visitors pick BEAT or MISS on locked calls before the report day; picks can't be
+# changed; graded with the ledger's own results (not-counted grades skipped).
+# SQLite on the Fly volume (/data). No money, no prizes: a game of skill.
+DATA_DIR = os.environ.get("DATA_DIR") or ("/data" if os.path.isdir("/data") else
+                                          os.path.join(os.path.dirname(os.path.abspath(__file__)), "data"))
+GAME_PICKS_IP_DAY = _env_int("GAME_PICKS_IP_DAY", 300)
+GAME_NEW_PLAYERS_IP_DAY = _env_int("GAME_NEW_PLAYERS_IP_DAY", 20)
+_db_lock = threading.Lock()
+_DEVICE_RE = re.compile(r"[a-z0-9-]{16,40}")
+_NICK_RE = re.compile(r"[A-Za-z0-9_]{3,16}")
+_BAD = ("fuck", "shit", "bitch", "cunt", "nigg", "fag", "rape", "nazi", "hitler", "porn",
+        "dick", "pussy", "whore", "slut", "kill", "admin", "salomon", "meta", "official")
+
+
+def db():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    con = sqlite3.connect(os.path.join(DATA_DIR, "desk.db"), timeout=10)
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("CREATE TABLE IF NOT EXISTS players(device TEXT PRIMARY KEY, nick TEXT, created_at TEXT)")
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS players_nick ON players(lower(nick))")
+    con.execute("CREATE TABLE IF NOT EXISTS picks(device TEXT, symbol TEXT, earnings_date TEXT, "
+                "pick TEXT, picked_at TEXT, PRIMARY KEY(device, symbol, earnings_date))")
+    return con
+
+
+def _ledger_calls():
+    return frozen_compact(salomon_get("/api/intel/frozen"))["calls"]
+
+
+def _open_calls(calls):
+    """Locked calls still open for picks: not graded, report day still ahead (ET)."""
+    today = et_today().isoformat()
+    return [c for c in calls if "correct" not in c and not str(c.get("status", "")).startswith("not counted")
+            and c.get("earnings_date", "") > today]
+
+
+def pick_receipt(device, symbol, date, pick, at):
+    return hashlib.sha256(f"{device}|{symbol}|{date}|{pick}|{at}".encode()).hexdigest()[:10]
+
+
+def game_state(device):
+    calls = _ledger_calls()
+    open_calls = _open_calls(calls)
+    graded = [c for c in calls if "correct" in c]
+    with _db_lock:
+        con = db()
+        crowd = defaultdict(lambda: {"BEAT": 0, "MISS": 0})
+        for sym, date, pk, n in con.execute(
+                "SELECT symbol, earnings_date, pick, count(*) FROM picks GROUP BY 1,2,3"):
+            crowd[(sym, date)][pk] = n
+        mine = {(r[0], r[1]): (r[2], r[3]) for r in con.execute(
+            "SELECT symbol, earnings_date, pick, picked_at FROM picks WHERE device=?", (device,))}
+        nick_row = con.execute("SELECT nick FROM players WHERE device=?", (device,)).fetchone()
+        players = con.execute("SELECT count(DISTINCT device) FROM picks").fetchone()[0]
+        all_picks = list(con.execute("SELECT device, symbol, earnings_date, pick FROM picks"))
+        nicks = dict(con.execute("SELECT device, nick FROM players WHERE nick IS NOT NULL"))
+        con.close()
+    result = {(c["symbol"], c["earnings_date"]): c for c in graded}
+
+    def mine_row(sym, date):
+        m = mine.get((sym, date))
+        return None if not m else {"pick": m[0], "locked_at": m[1],
+                                   "receipt": pick_receipt(device, sym, date, m[0], m[1])}
+
+    open_rows = []
+    for c in sorted(open_calls, key=lambda c: (c["earnings_date"], c["symbol"]))[:12]:
+        key = (c["symbol"], c["earnings_date"])
+        m = mine_row(*key)
+        row = {"symbol": c["symbol"], "earnings_date": c["earnings_date"],
+               "salomon": c.get("prediction"), "confidence": c.get("confidence"), "mine": m,
+               "pickers": crowd[key]["BEAT"] + crowd[key]["MISS"]}
+        if m:   # the crowd's split shows once you've locked yours (no copying the crowd)
+            row["crowd"] = crowd[key]
+        open_rows.append(row)
+    me_graded = me_right = sal_right = 0
+    results = []
+    for c in sorted(graded, key=lambda c: c["earnings_date"], reverse=True):
+        key = (c["symbol"], c["earnings_date"])
+        m = mine.get(key)
+        cr = crowd[key]
+        tot = cr["BEAT"] + cr["MISS"]
+        row = {"symbol": c["symbol"], "earnings_date": c["earnings_date"], "result": c.get("result"),
+               "salomon": c.get("prediction"), "salomon_right": c.get("correct"),
+               "crowd_right_pct": round(cr.get(c.get("result"), 0) / tot * 100) if tot else None}
+        if m:
+            row["mine"] = m[0]
+            row["mine_right"] = m[0] == c.get("result")
+            me_graded += 1
+            me_right += row["mine_right"]
+            sal_right += bool(c.get("correct"))
+        results.append(row)
+    board = defaultdict(lambda: [0, 0])
+    for dev, sym, date, pk in all_picks:
+        c = result.get((sym, date))
+        if c and dev in nicks:
+            board[dev][1] += 1
+            board[dev][0] += pk == c.get("result")
+    leaders = sorted(([nicks[d], r, g] for d, (r, g) in board.items() if g >= 3),
+                     key=lambda x: (-x[1], -x[1] / x[2], x[0].lower()))[:10]
+    return {"open": open_rows, "results": results[:10],
+            "me": {"nick": nick_row[0] if nick_row else None, "picks": len(mine),
+                   "graded": me_graded, "right": me_right, "salomon_right_same": sal_right},
+            "players": players,
+            "board": [{"nick": n, "right": r, "graded": g} for n, r, g in leaders],
+            "rules": "Pick before the report day (New York time). Picks can't be changed. "
+                     "Graded with the same results as Salomon's ledger. No money, no prizes."}
+
+
+def game_pick(device, ip, symbol, date, pick):
+    if pick not in ("BEAT", "MISS"):
+        return 400, {"error": "Pick Beat or Miss."}
+    if not any(c["symbol"] == symbol and c["earnings_date"] == date
+               for c in _open_calls(_ledger_calls())):
+        return 409, {"error": "Picks for this report are closed."}
+    if not counters.take(f"game_pick:{ip}", GAME_PICKS_IP_DAY):
+        return 429, {"error": "That's enough picks for today. Come back tomorrow."}
+    at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with _db_lock:
+        con = db()
+        if not con.execute("SELECT 1 FROM players WHERE device=?", (device,)).fetchone():
+            if not counters.take(f"game_new:{ip}", GAME_NEW_PLAYERS_IP_DAY):
+                con.close()
+                return 429, {"error": "Too many new players from this connection today."}
+            con.execute("INSERT INTO players(device, nick, created_at) VALUES(?, NULL, ?)", (device, at))
+        cur = con.execute("INSERT OR IGNORE INTO picks VALUES(?,?,?,?,?)", (device, symbol, date, pick, at))
+        con.commit()
+        con.close()
+    if not cur.rowcount:
+        return 409, {"error": "You already locked a pick for this report."}
+    counters.add("game_picks")
+    return 200, {"ok": True}
+
+
+def game_nick(device, nick):
+    if not _NICK_RE.fullmatch(nick or ""):
+        return 400, {"error": "Use 3 to 16 letters, numbers or _."}
+    if any(b in nick.lower() for b in _BAD):
+        return 400, {"error": "Please pick another name."}
+    with _db_lock:
+        con = db()
+        if not con.execute("SELECT 1 FROM players WHERE device=?", (device,)).fetchone():
+            con.close()
+            return 400, {"error": "Make a pick first, then choose a name."}
+        try:
+            con.execute("UPDATE players SET nick=? WHERE device=?", (nick, device))
+            con.commit()
+        except sqlite3.IntegrityError:
+            con.close()
+            return 409, {"error": "That name is taken."}
+        con.close()
+    return 200, {"ok": True}
 
 
 def recent_row(r):
@@ -886,6 +1083,39 @@ class Handler(SimpleHTTPRequestHandler):
             counters.add("page_views")
             self.path = "/index.html"
             return super().do_GET()
+        m = re.fullmatch(r"/proof/batch-(\d{1,4})\.(json|alice\.ots|bob\.ots)", path)
+        if m:
+            # "Verify it yourself": the batch exactly as stored + its timestamp receipt.
+            try:
+                pr = salomon_get(f"/api/intel/frozen/proof/{int(m.group(1))}")
+            except Exception:
+                return self.send_json(404, {"error": "No such batch."})
+            kind = m.group(2)
+            if kind == "json":
+                body, ctype = pr["line"].encode(), "application/json"
+            else:
+                b64 = (pr.get("ots_b64") or {}).get(kind.split(".")[0])
+                if not b64:
+                    return self.send_json(404, {"error": "No receipt for this batch yet."})
+                body, ctype = base64.b64decode(b64), "application/octet-stream"
+            name = f"salomon-batch-{m.group(1)}.json" + ("" if kind == "json" else ".ots")
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/api/game":
+            dev = (urllib.parse.parse_qs(self.path.partition("?")[2]).get("d") or [""])[0]
+            if not _DEVICE_RE.fullmatch(dev):
+                dev = "-"
+            try:
+                return self.send_json(200, game_state(dev))
+            except Exception as exc:
+                print(f"game: {exc}")
+                return self.send_json(502, {"error": "The game is unavailable right now."})
         if path == "/api/greeting":
             if not DEMO_ENABLED:
                 return self.send_json(200, {"text": GREETING_FALLBACK, "replies": []})
@@ -937,6 +1167,25 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+        if path in ("/api/pick", "/api/nick"):
+            try:
+                length = min(int(self.headers.get("Content-Length") or 0), 400)
+                b = json.loads(self.rfile.read(length) or b"{}")
+            except (ValueError, AttributeError):
+                return self.send_json(400, {"error": "Bad request."})
+            dev = str(b.get("d", ""))
+            if not _DEVICE_RE.fullmatch(dev):
+                return self.send_json(400, {"error": "Bad request."})
+            try:
+                if path == "/api/pick":
+                    code, out = game_pick(dev, self.client_ip(), str(b.get("symbol", ""))[:8].upper(),
+                                          str(b.get("earnings_date", ""))[:10], str(b.get("pick", "")).upper())
+                else:
+                    code, out = game_nick(dev, str(b.get("nick", "")).strip())
+            except Exception as exc:
+                print(f"game post: {exc}")
+                code, out = 502, {"error": "The game is unavailable right now."}
+            return self.send_json(code, out)
         if path == "/api/event":
             # Funnel clicks from the page ("signup", "connect_muse") — names only.
             try:
@@ -1040,6 +1289,13 @@ if __name__ == "__main__":
     print(f"Fallback model: {META_MODEL} via api.meta.ai | key loaded: "
           f"{bool(read_key('META_API_KEY', META_KEY_FILE))} "
           f"| Salomon key loaded: {bool(read_key('SALOMON_API_KEY', SALOMON_KEY_FILE))}")
+    if os.geteuid() == 0:   # on Fly: give the volume to the app user, then drop root
+        os.makedirs(DATA_DIR, exist_ok=True)
+        os.chown(DATA_DIR, 10001, 10001)
+        os.setgid(10001)
+        os.setuid(10001)
     if DEMO_ENABLED:   # write the first welcome before the first visitor arrives
         threading.Thread(target=_make_greeting, daemon=True).start()
+    if ARCHIVE_ENABLED and DEMO_ENABLED:
+        threading.Thread(target=archive_loop, daemon=True).start()
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
