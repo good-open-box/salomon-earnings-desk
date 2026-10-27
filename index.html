@@ -172,6 +172,9 @@
   .watch .lbl{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
   .chip.w{border-color:var(--inline);font-family:var(--mono);font-weight:500}
   .meta .src{font-weight:700;color:var(--muted)}
+  .meta a.tag{color:var(--brand2);text-decoration:none;border-color:rgba(16,185,129,.35)}
+  .meta a.tag:hover{border-color:var(--brand)}
+  .chk{font-size:12px;font-weight:700;color:var(--brand2);text-decoration:none;white-space:nowrap}
   .btn.ghost.sm{min-height:40px;padding:8px 12px;font-size:14px}
 
   .sheet{position:fixed;inset:0;z-index:50;background:rgba(4,8,14,.72);display:grid;place-items:center;
@@ -221,7 +224,6 @@
   <symbol id="i-logo" viewBox="290 80 250 270"><path fill="#00FF88" d="M522.84,225.87c0,8.36-2.63,16.1-7.1,22.45-1.1,1.56-2.31,3.04-3.63,4.42-.01.02-.04.04-.05.05l-1.33,1.33s-.03.04-.05.05l-71.29,71.28c-5.59,6.26-13.72,10.2-22.77,10.2-16.86,0-30.51-13.67-30.51-30.51,0-8.99,3.88-17.07,10.07-22.65l34.15-34.15h-71.92c-4.28,0-8.39-.68-12.25-1.94-15.75-5.15-27.12-19.96-27.12-37.42,0-8.2,2.5-15.81,6.79-22.11.81-1.18,1.68-2.32,2.6-3.41l4.45-4.45,31.8-31.8c-1.36,3.35-2.11,7.01-2.11,10.85,0,4.34.96,8.46,2.68,12.15,4.53,9.73,14.32,16.5,25.72,16.65,0,0,0,0,0,0h92.83c2.5,0,4.94.24,7.31.69,18.06,3.42,31.71,19.29,31.71,38.34Z"/><polygon fill="#00FF88" points="464.41 133.7 378.5 133.7 421.45 90.75 464.41 133.7"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
-  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
@@ -249,7 +251,6 @@
     <ul class="trust">
       <li><svg class="i"><use href="#i-lock"/></svg>Calls locked before every report</li>
       <li><svg class="i"><use href="#i-shield"/></svg>Read-only, never trades</li>
-      <li><svg class="i"><use href="#i-eye"/></svg>Data source shown on every answer</li>
     </ul>
   </header>
 
@@ -539,6 +540,20 @@ document.getElementById('sheet-copy').onclick = async () => {
   catch { document.getElementById('sheet-copy').textContent = 'desk.slmn.trade'; }
 };
 
+function link(cls, text, href) {
+  const a = el('a', cls, text); a.href = href; a.target = '_blank'; a.rel = 'noopener'; return a;
+}
+// Public pages where a company's earnings can be checked: its SEC filings (the
+// 8-K carries the earnings release) and its Nasdaq earnings page (estimate vs actual).
+function checkLinks(sym) {
+  const t = String(sym).toUpperCase().replace(/[^A-Z.]/g, '');
+  if (!t) return [];
+  return [
+    [t + ' SEC filings ↗', 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=' + encodeURIComponent(t) + '&type=8-K&dateb=&owner=include&count=40'],
+    [t + ' on Nasdaq ↗', 'https://www.nasdaq.com/market-activity/stocks/' + encodeURIComponent(t.toLowerCase()) + '/earnings'],
+  ];
+}
+
 const SUGGESTIONS = [
   "Who reports earnings this week?",
   "Was Salomon right about Sherwin-Williams?",
@@ -565,12 +580,8 @@ async function checkHealth() {
 }
 checkHealth();
 
-const GREETING = "Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what Salomon expects for a company, or how its locked calls have scored so far.";
-const GREET_REPLIES = [
-  ['Who reports this week', 'Who reports earnings this week?'],
-  ['What Salomon expects', 'What does Salomon expect for the companies reporting next?'],
-  ['How the locked calls scored', 'How have the locked calls scored so far? Include the misses.'],
-];
+const GREETING = "Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what Wall Street expects, or what Salomon predicts for a company. Every Salomon call is locked before the report and graded after it — misses included, nothing quietly edited.";
+const GREET_REPLIES = [];
 let greetingReady = false;
 let pendingFollow = null;
 function replyButtons(pairs) {
@@ -585,7 +596,7 @@ function replyButtons(pairs) {
 }
 function paintGreeting(msg) {
   renderAnswer(msg, GREETING);
-  msg.appendChild(replyButtons(GREET_REPLIES));
+  if (GREET_REPLIES.length) msg.appendChild(replyButtons(GREET_REPLIES));
 }
 function showGreeting() {
   const msg = addRow('bot');
@@ -608,18 +619,23 @@ function followGreeting(sc, graded, upcoming) {
   const run = () => {
     if (history.length || document.getElementById('greet-live')) return;
     const miss = graded.find(c => !c.correct);
+    const missName = miss ? (miss.symbol === 'SHW' ? 'Sherwin-Williams' : miss.symbol) : '';
     const next = upcoming[0];
-    let line = sc.graded
-      ? `So far ${sc.correct} of ${sc.graded} graded calls are right.`
-      : `${upcoming.length} calls are locked and still waiting for their report.`;
-    if (miss) line += ' ' + (miss.symbol === 'SHW' ? 'Sherwin-Williams' : miss.symbol) + ' was the miss.';
-    if (next) line += ' Next up is ' + next.symbol + '.';
+    let line;
+    if (sc.graded) {
+      line = `**${sc.correct} of ${sc.graded} calls right so far.** Each one was locked before its report.`;
+      if (miss) line += ' ' + missName + ' is the miss — ask me what happened.';
+    } else {
+      line = `**${upcoming.length} ${upcoming.length === 1 ? 'call is' : 'calls are'} locked** and waiting for their reports. Each one is frozen before its report, so nothing can be changed after the fact.`;
+    }
+    if (next) line += ' Next to report: **' + next.symbol + '**' +
+      (next.earnings_date ? ' on ' + shortDate(next.earnings_date) : '') + '.';
     const msg = addRow('bot');
     msg.parentElement.id = 'greet-live';
     renderAnswer(msg, line);
     const replies = [];
-    if (miss) replies.push(['Ask about the miss', 'Was Salomon right about ' + (miss.symbol === 'SHW' ? 'Sherwin-Williams' : miss.symbol) + '?']);
-    if (next) replies.push(['What Salomon expects for ' + next.symbol, "What does Salomon expect for " + next.symbol + "'s earnings?"]);
+    if (miss) replies.push(['What happened with ' + missName + '?', 'Was Salomon right about ' + missName + '? Walk me through what it called and what the company actually reported.']);
+    if (next) replies.push(["Salomon's call on " + next.symbol, "What does Salomon expect for " + next.symbol + "'s earnings? Include why, and what would prove the call wrong."]);
     if (replies.length) msg.appendChild(replyButtons(replies));
   };
   if (greetingReady) run();
@@ -652,6 +668,11 @@ form.addEventListener('submit', async (e) => {
         s.tool.replace(/^get_/, '').replace(/_/g, ' ')) + (s.symbol ? ' · ' + s.symbol : '')))];
     if (labels.length) meta.appendChild(el('span', 'src', 'Source:'));
     labels.forEach(s => meta.appendChild(el('span', 'tag', s)));
+    // Places anyone can check the numbers themselves.
+    const syms = [...new Set((d.sources || []).map(s => s.symbol).filter(Boolean))];
+    syms.forEach(sym => checkLinks(sym).forEach(([label, href]) => meta.appendChild(link('tag', label, href))));
+    if ((d.sources || []).some(s => s.tool === 'get_frozen_calls'))
+      meta.appendChild(link('tag', 'Ledger record ↗', '/api/frozen'));
     meta.appendChild(el('span', '', new Date(d.answered_at_utc).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})));
     wait.appendChild(meta);
     statusEl.textContent = '';
@@ -695,6 +716,8 @@ function callRow(c) {
     const sp = c.surprise_pct == null ? '' : ' (' + (c.surprise_pct >= 0 ? '+' : '') + c.surprise_pct + '% vs estimate)';
     ft.appendChild(el('span', 'st ' + (c.correct ? 'ok' : 'bad'),
       (c.correct ? 'Right' : 'Wrong') + ': it reported a ' + String(c.result || '').toLowerCase() + sp));
+    const [, nasdaq] = checkLinks(c.symbol);
+    if (nasdaq) ft.appendChild(link('chk', 'Check ↗', nasdaq[1]));
   } else {
     ft.appendChild(el('span', 'st', 'Waiting for the report'));
   }
