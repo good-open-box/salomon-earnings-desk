@@ -202,6 +202,12 @@
   input{flex:1;min-width:0;min-height:50px;padding:12px 15px;border-radius:13px;border:1px solid var(--line2);
     background:var(--bg2);color:var(--text);font:500 16px var(--font)}
   input::placeholder{color:var(--faint)}
+  @media (max-width:430px){#form .icon-btn{min-width:42px;min-height:46px;border-radius:12px}#form{gap:6px}}
+  .attach-prev{display:flex;align-items:center;gap:10px;margin:0 14px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--card2);font-size:13px;color:var(--muted)}
+  .attach-prev img{width:48px;height:48px;object-fit:cover;border-radius:8px;flex:0 0 auto}
+  .attach-prev span{flex:1;min-width:0}
+  .attach-x{border:0;background:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:4px 8px}
+  .shot{display:block;max-width:220px;max-height:180px;border-radius:10px;margin:0 0 6px auto;object-fit:cover}
   .icon-btn{min-height:50px;min-width:50px;border-radius:13px;display:grid;place-items:center;cursor:pointer;
     border:1px solid var(--line2);background:var(--card2);color:var(--text);transition:background-color .2s,border-color .2s}
   .icon-btn:hover{border-color:var(--brand)}
@@ -308,6 +314,7 @@
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
   <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol>
@@ -356,9 +363,16 @@
       <div class="chips" id="chips" aria-label="Suggested questions"></div>
       <main id="chat" aria-live="polite"></main>
       <div id="status" role="status"></div>
+      <div class="attach-prev" id="attach-prev" hidden>
+        <img id="attach-img" alt="Your screenshot">
+        <span>Screenshot ready. Ask about it, or just send. Pictures aren't saved; please don't share account numbers.</span>
+        <button type="button" class="attach-x" id="attach-x" aria-label="Remove screenshot">×</button>
+      </div>
       <form id="form">
         <label class="visually-hidden" for="input">Your question</label>
-        <input id="input" autocomplete="off" enterkeyhint="send" placeholder="Ask about earnings or a stock…">
+        <input id="input" autocomplete="off" enterkeyhint="send" placeholder="Ask Saly about a stock…">
+        <button class="icon-btn" id="attach" type="button" aria-label="Share a screenshot"><svg class="i"><use href="#i-image"/></svg></button>
+        <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden>
         <button class="icon-btn" id="mic" type="button" aria-label="Ask by voice" hidden><svg class="i"><use href="#i-mic"/></svg></button>
         <button class="icon-btn send" id="send" type="submit" aria-label="Ask"><svg class="i"><use href="#i-send"/></svg></button>
       </form>
@@ -999,13 +1013,50 @@ async function showGreeting() {
 }
 showGreeting();
 
+// ── Share a screenshot: shrunk in the browser to 1280 px JPEG, sent once, never saved ──
+let pendingImage = null;
+const attachPrev = document.getElementById('attach-prev'), fileIn = document.getElementById('file');
+function shrinkImage(file) {
+  return new Promise((ok, bad) => {
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return bad(new Error('Please share a PNG or JPG screenshot.'));
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(im.width, im.height));
+      const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      ok(c.toDataURL('image/jpeg', 0.82));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); bad(new Error("That picture couldn't be opened.")); };
+    im.src = url;
+  });
+}
+async function attachFile(file) {
+  try {
+    pendingImage = await shrinkImage(file);
+    document.getElementById('attach-img').src = pendingImage;
+    attachPrev.hidden = false; input.focus();
+  } catch (err) { statusEl.textContent = err.message; setTimeout(() => { statusEl.textContent = ''; }, 4000); }
+}
+function clearAttach() { pendingImage = null; attachPrev.hidden = true; fileIn.value = ''; }
+document.getElementById('attach').onclick = () => fileIn.click();
+fileIn.onchange = () => { if (fileIn.files[0]) attachFile(fileIn.files[0]); };
+document.getElementById('attach-x').onclick = clearAttach;
+input.addEventListener('paste', e => {
+  const f = [...(e.clipboardData?.files || [])].find(x => x.type.startsWith('image/'));
+  if (f) { e.preventDefault(); attachFile(f); }
+});
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const q = input.value.trim();
+  const image = pendingImage;
+  const q = input.value.trim() || (image ? 'What does this screenshot show, and what does it mean?' : '');
   if (!q) return;
   input.value = '';
-  addRow('user').textContent = q;
-  history.push({role: 'user', content: q});
+  const urow = addRow('user');
+  if (image) { const sh = el('img', 'shot'); sh.src = image; sh.alt = 'Your screenshot'; urow.appendChild(sh); }
+  urow.appendChild(document.createTextNode(q));
+  history.push({role: 'user', content: image ? q + ' (I shared a screenshot.)' : q});
+  clearAttach();
   sendBtn.disabled = true;
   const wait = addRow('bot');
   const dots = el('span', 'typing'); dots.append(el('span'), el('span'), el('span'));
@@ -1014,7 +1065,7 @@ form.addEventListener('submit', async (e) => {
   salySet('thinking');
   try {
     const r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'},
-                                        body: JSON.stringify({messages: history})});
+                                        body: JSON.stringify(image ? {messages: history, image} : {messages: history})});
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Request failed');
     history.push({role: 'assistant', content: d.answer});

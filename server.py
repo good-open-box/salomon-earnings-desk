@@ -92,6 +92,36 @@ _ip_recent = defaultdict(deque)          # ip -> question times (last 10 min)
 _ip_day = defaultdict(int)               # (day, ip) -> questions today
 
 
+IMAGE_DAY = int(os.environ.get("IMAGE_DAY", "300"))        # screenshots per day, all visitors
+IMAGE_PER_IP_DAY = int(os.environ.get("IMAGE_PER_IP_DAY", "8"))
+IMAGE_MAX_BYTES = 1_500_000                                  # decoded; the page shrinks to 1280 px
+_IMAGE_RE = re.compile(r"^data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$")
+
+
+def allow_image(ip):
+    """Screenshots cost more than text: their own per-visitor and global daily caps."""
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with _ip_lock:
+        if _ip_day[("img", day, ip)] >= IMAGE_PER_IP_DAY:
+            return "You've shared today's limit of screenshots. You can still type questions."
+        if not counters.take("images", IMAGE_DAY):
+            return "Screenshots have reached today's limit for the demo. Please type your question."
+        _ip_day[("img", day, ip)] += 1
+    return None
+
+
+def clean_image(data):
+    """A small JPEG/PNG/WebP data URL, or None. Never stored or logged."""
+    m = _IMAGE_RE.match(data or "") if isinstance(data, str) else None
+    if not m:
+        return None
+    try:
+        raw = base64.b64decode(m.group(2), validate=True)
+    except Exception:
+        return None
+    return data if 0 < len(raw) <= IMAGE_MAX_BYTES else None
+
+
 def allow_voice(ip):
     """Voice clips get their own per-visitor window and daily cap (Meta credits)."""
     now = time.monotonic()
@@ -1120,7 +1150,17 @@ VOICE_CALL_NOTE = ("This is a live voice call: your answer is read aloud. Answer
                    "Still end with the Follow-ups line.")
 
 
-def chat(user_messages, voice=False):
+IMAGE_NOTE = ("The user shared a screenshot (often a stock chart or an earnings page). "
+              "First say in plain words what it shows: the company or ticker, the time frame, and "
+              "what the price or numbers did, only what you can actually see. If you can't tell "
+              "the ticker, say so and ask. Then use your tools to look up Salomon's data for that "
+              "company (report date, locked call, recent results, what Wall Street expects) and "
+              "explain what the picture means in that light. Never predict where the price goes "
+              "next and never say buy, sell or hold. Never repeat account numbers, balances, names "
+              "or other personal details visible in the picture.")
+
+
+def chat(user_messages, voice=False, image=None):
     """Run the tool-calling loop; return (answer, sources, model_display, followups)."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
                 # The model can't know the date; it once called Wed Oct 28 a Tuesday.
@@ -1131,6 +1171,11 @@ def chat(user_messages, voice=False):
     for m in user_messages[-12:]:
         if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str):
             messages.append({"role": m["role"], "content": m["content"][:4000]})
+    if image and messages[-1]["role"] == "user":
+        messages.insert(-1, {"role": "system", "content": IMAGE_NOTE})
+        messages[-1] = {"role": "user", "content": [
+            {"type": "text", "text": messages[-1]["content"]},
+            {"type": "image_url", "image_url": {"url": image}}]}
 
     sources = []
     model_display = ""
@@ -1414,13 +1459,25 @@ class Handler(SimpleHTTPRequestHandler):
     def _chat(self):
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            if length <= 0 or length > 100_000:
+            if length <= 0 or length > 2_200_000:
                 return self.send_json(400, {"error": "Bad request size."})
             payload = json.loads(self.rfile.read(length))
             messages = payload.get("messages")
             if not isinstance(messages, list) or not messages:
                 return self.send_json(400, {"error": "Please type a question first."})
-            answer, sources, model_display, followups = chat(messages, voice=bool(payload.get("voice")))
+            image = None
+            if payload.get("image"):
+                image = clean_image(payload.get("image"))
+                if not image:
+                    return self.send_json(400, {"error": "That picture couldn't be read. Please try a smaller PNG or JPG screenshot."})
+                why = allow_image(self.client_ip())
+                if why:
+                    counters.add("limited")
+                    return self.send_json(429, {"error": why})
+                counters.add("image_questions")
+            elif length > 100_000:
+                return self.send_json(400, {"error": "Bad request size."})
+            answer, sources, model_display, followups = chat(messages, voice=bool(payload.get("voice")), image=image)
             return self.send_json(200, {
                 "answer": answer,
                 "followups": followups,
