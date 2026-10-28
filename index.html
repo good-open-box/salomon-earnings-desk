@@ -104,9 +104,7 @@
   .saly img.on{opacity:1}
   .saly-head{width:84px;height:104px;margin:-12px -6px -18px -6px}
   .saly[data-state="idle"]{animation:breathe 3s ease-in-out infinite}
-  .saly[data-state="thinking"]{animation:tilt 1.6s ease-in-out infinite}
-  .saly[data-state="speaking"]{animation:talk .45s ease-in-out infinite alternate}
-  .saly[data-state="happy"]{animation:hop .6s ease-out 2}
+  .saly[data-state="thinking"]{animation:tilt 2.6s ease-in-out infinite}
 
   /* Chat */
   .chat{display:flex;flex-direction:column;min-height:520px}
@@ -129,12 +127,11 @@
   .saly-call{position:relative;width:250px;height:310px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
   .callscreen[data-state="hearing"] .orb::before{transform:scale(1.25)}
   .callscreen[data-state="thinking"] .orb::before{background:radial-gradient(circle,rgba(56,189,248,.35),rgba(56,189,248,0) 70%)}
-  @keyframes breathe{50%{transform:scale(1.025) translateY(-3px)}}
+  @keyframes breathe{50%{transform:scale(1.012) translateY(-2px)}}
   @keyframes lean{from{transform:scale(1.03) rotate(-1.5deg)}to{transform:scale(1.05) rotate(1.5deg)}}
-  @keyframes tilt{0%,100%{transform:rotate(0)}30%{transform:rotate(-6deg)}60%{transform:rotate(4deg)}}
+  @keyframes tilt{0%,100%{transform:rotate(0)}50%{transform:rotate(-3deg)}}
   @keyframes talk{from{transform:translateY(0) scale(1)}to{transform:translateY(-6px) scale(1.02)}}
   @keyframes hop{0%{transform:translateY(0)}35%{transform:translateY(-7px)}70%{transform:translateY(1px)}100%{transform:translateY(0)}}
-  .row.bot .av{animation:hop .55s ease-out 1}
   @media (prefers-reduced-motion:reduce){.saly,.row.bot .av{animation:none!important}}
   .call-state{margin:0;font-size:20px;font-weight:800}
   .call-cap{margin:0;font-size:15px;color:#B6C0D0;max-height:7.5em;overflow:auto;line-height:1.5}
@@ -525,11 +522,7 @@ function salySet(state) {
 }
 function salyTick() {
   const st = SALY.state;
-  if (st === 'speaking') {
-    const r = Math.random();
-    salyShow(r < .38 ? 'talk1' : r < .72 ? 'talk2' : 'base');
-    SALY.t = setTimeout(salyTick, 100 + Math.random() * 90); return;
-  }
+  if (st === 'speaking') return;   // the mouth follows the words (salyRead)
   if (st === 'wave') {   // waves hello: same paw, back and forth
     SALY.w++; salyShow(SALY.w % 2 ? 'wave1' : 'wave2');
     SALY.t = setTimeout(SALY.w >= 7 ? () => salySet('idle') : salyTick, 260); return;
@@ -537,6 +530,30 @@ function salyTick() {
   if (st === 'happy') { salyShow('happy'); SALY.t = setTimeout(() => salySet('idle'), 1500); return; }
   salyShow(st === 'thinking' ? 'think' : 'base');
   SALY.t = setTimeout(() => { salyShow('blink'); SALY.t = setTimeout(salyTick, 140); }, 1800 + Math.random() * 3200);
+}
+// Mouth follows the words being said or shown: open on vowels, half-open on
+// consonants, closed on spaces, a short rest at commas and full stops.
+function salyRead(text, cps) {
+  clearTimeout(SALY.mt);
+  let i = 0;
+  const stride = Math.max(1, Math.round(cps * 0.09));
+  const step = () => {
+    if (SALY.state !== 'speaking') return;
+    if (i >= text.length) { salyShow('base'); return; }
+    const c = text[i];
+    salyShow(/[aeiouy]/i.test(c) ? 'talk2' : /[a-z0-9]/i.test(c) ? 'talk1' : 'base');
+    const rest = /[.!?]/.test(c) ? 380 : /[,;:]/.test(c) ? 200 : 0;
+    i += stride;
+    SALY.mt = setTimeout(step, 90 + rest);
+  };
+  step();
+}
+// After she finishes: her face matches what she said.
+function salyReact(text) {
+  if (/\b(wrong|missed|sorry|not counted|couldn'?t|can'?t|unavailable|no data|limit)\b/i.test(text)) {
+    salySet('thinking'); SALY.t = setTimeout(() => salySet('idle'), 1400);
+  } else if (/\b(beat|right|correct|welcome|great)\b/i.test(text)) salySet('happy');
+  else salySet('idle');
 }
 mountSaly(document.getElementById('saly-head'));
 mountSaly(document.getElementById('saly-call'));
@@ -783,9 +800,9 @@ function replyButtons(questions) {
 }
 // Type the answer out a few characters at a time, like someone writing back.
 function typeOut(container, text) {
-  salySet('speaking');
+  if (!SALY.voice) { salySet('speaking'); salyRead(plain(text), text.length / 2); }
   return new Promise(fin => {
-    const done = () => { if (!call) salySet('happy'); fin(); };
+    const done = () => { if (!call && !SALY.voice) salyReact(text); fin(); };
     if (still || text.length > 1800) { renderAnswer(container, text); done(); return; }
     let i = 0;
     const step = Math.max(2, Math.round(text.length / 120));
@@ -808,13 +825,17 @@ function plain(text) {
              .replace(/\$(-?)(\d+)\.(\d\d)\b/g, (m, neg, d, c) => (neg ? 'minus ' : '') + d + ' dollars ' + c)
              .replace(/\bEPS\b/g, 'earnings per share').replace(/\n+/g, '. ');
 }
-function speak(text) {
+function speak(text) { if (canSpeak) speakThen(text, () => {}); }
+// Saly's voice: the most natural English voice this device has (Meta has no speech model).
+let salyVoice = null;
+function pickVoice() {
   if (!canSpeak) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(plain(text).replace(/Not financial advice.*$/i, 'Not financial advice.'));
-  u.rate = 1.04; u.lang = 'en-US';
-  speechSynthesis.speak(u);
+  const vs = speechSynthesis.getVoices().filter(v => /^en[-_]/i.test(v.lang));
+  const want = [/ava/i, /samantha/i, /allison/i, /natural/i, /neural/i, /aria/i, /jenny/i, /google us english/i, /zira/i, /female/i];
+  for (const w of want) { const v = vs.find(x => w.test(x.name)); if (v) { salyVoice = v; return; } }
+  salyVoice = vs.find(v => /en-US/i.test(v.lang)) || vs[0] || null;
 }
+if (canSpeak) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 const speakBtn = document.getElementById('speak');
 function paintSpeak() {
   speakBtn.setAttribute('aria-pressed', speakOn ? 'true' : 'false');
@@ -845,10 +866,14 @@ function speakThen(text, done) {
   const clean = plain(text).replace(/Not financial advice.*$/i, 'Not financial advice.');
   const parts = clean.match(/[^.!?]+[.!?]*/g) || [clean];   // sentence by sentence: long utterances stall in some browsers
   let finished = false;
-  const finish = () => { if (!finished) { finished = true; clearTimeout(guard); done(); } };
+  SALY.voice = true; salySet('speaking');
+  const finish = () => { if (!finished) { finished = true; clearTimeout(guard); SALY.voice = false;
+                                          if (!call) salyReact(clean); done(); } };
   const guard = setTimeout(finish, clean.split(/\s+/).length * 450 + 4000);
   parts.forEach((t, i) => {
-    const u = new SpeechSynthesisUtterance(t.trim()); u.rate = 1.04; u.lang = 'en-US';
+    const u = new SpeechSynthesisUtterance(t.trim()); u.rate = 1.0; u.pitch = 1.08; u.lang = 'en-US';
+    if (salyVoice) u.voice = salyVoice;
+    u.onstart = () => { if (SALY.state === 'speaking') salyRead(t.trim(), 14); };
     if (i === parts.length - 1) { u.onend = finish; u.onerror = finish; }
     speechSynthesis.speak(u);
   });
@@ -867,10 +892,10 @@ async function startCall() {
     proc.onaudioprocess = e => onCallAudio(e.inputBuffer.getChannelData(0));
     src.connect(proc); proc.connect(ctx.destination);
     setCall('speaking', 'Saly');
-    salySet('wave');
+    salySet('wave');   // she waves, then says hello
     const hello = "Hi, I'm Saly. What would you like to know?";
     document.getElementById('call-bot').textContent = hello;
-    speakThen(hello, listen);
+    setTimeout(() => { if (call) speakThen(hello, listen); }, still ? 0 : 1300);
   } catch (e) {
     const blocked = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
     setCall('thinking', blocked ? 'Microphone is blocked. Allow it for this site in your browser settings, or type your question instead.'
