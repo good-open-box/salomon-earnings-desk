@@ -1198,6 +1198,9 @@ def chat(user_messages, voice=False):
     raise RuntimeError("That question needed too many data lookups. Try asking it in smaller pieces.")
 
 
+SALY_FILES = {f"/saly/{f}.webp" for f in ("base", "blink", "talk1", "talk2", "happy", "think")}
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -1229,7 +1232,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
-        if path in ("/saly.webp", "/saly-face.webp"):   # Saly, drawn with Muse Image
+        if path in SALY_FILES:   # Saly's frames, drawn with Muse Image
             body = (Path(__file__).resolve().parent / path[1:]).read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "image/webp")

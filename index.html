@@ -99,7 +99,14 @@
   .card-h .who{margin:1px 0 0;font-size:12px;color:var(--faint);font-weight:600}
   .card-h .sub{margin-left:auto;font-size:12.5px;color:var(--faint);font-weight:600}
   .ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand2)}
-  .saly-ico{overflow:hidden;width:40px;height:40px;border-radius:50%;background:var(--brand-soft)}.saly-ico img{width:100%;height:100%;object-fit:cover;display:block}
+  .saly{position:relative;display:block;flex:0 0 auto;transform-origin:50% 100%}
+  .saly img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:50% 100%;opacity:0;display:block}
+  .saly img.on{opacity:1}
+  .saly-head{width:74px;height:96px;margin:-10px 0 -16px -4px}
+  .saly[data-state="idle"]{animation:breathe 3s ease-in-out infinite}
+  .saly[data-state="thinking"]{animation:tilt 1.6s ease-in-out infinite}
+  .saly[data-state="speaking"]{animation:talk .45s ease-in-out infinite alternate}
+  .saly[data-state="happy"]{animation:hop .6s ease-out 2}
 
   /* Chat */
   .chat{display:flex;flex-direction:column;min-height:520px}
@@ -110,28 +117,25 @@
   .chip:hover{border-color:var(--brand)}
   .mini.callbtn{margin-left:auto;color:var(--brand2);border-color:rgba(16,185,129,.45)}
   .mini.callbtn svg{width:15px;height:15px}
+  .mini.callbtn{white-space:nowrap}
   .callscreen{position:fixed;inset:0;z-index:60;background:radial-gradient(700px 500px at 50% 30%,rgba(16,185,129,.22),transparent 60%),#05080E;
     display:grid;place-items:center;color:#EEF2F8;
     padding:max(20px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(20px,env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
   .call-box{width:100%;max-width:460px;display:grid;justify-items:center;gap:14px;text-align:center}
   .call-top{margin:0;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9AA6BA}
-  .orb{width:220px;height:260px;border:0;cursor:pointer;display:grid;place-items:end center;padding:0;background:none;position:relative}
+  .orb{width:220px;height:300px;border:0;cursor:pointer;display:grid;place-items:end center;padding:0;background:none;position:relative}
   .orb::before{content:"";position:absolute;left:50%;bottom:6px;width:190px;height:190px;margin-left:-95px;border-radius:50%;
     background:radial-gradient(circle,rgba(16,185,129,.35),rgba(16,185,129,0) 70%);transition:transform .3s,opacity .3s}
-  .orb img{position:relative;height:250px;width:auto;display:block;transform-origin:50% 100%;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
-  .callscreen[data-state="listening"] .orb img{animation:breathe 2.4s ease-in-out infinite}
-  .callscreen[data-state="hearing"] .orb img{animation:lean .9s ease-in-out infinite alternate}
+  .saly-call{position:relative;width:200px;height:300px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
   .callscreen[data-state="hearing"] .orb::before{transform:scale(1.25)}
-  .callscreen[data-state="thinking"] .orb img{animation:tilt 1.4s ease-in-out infinite}
   .callscreen[data-state="thinking"] .orb::before{background:radial-gradient(circle,rgba(56,189,248,.35),rgba(56,189,248,0) 70%)}
-  .callscreen[data-state="speaking"] .orb img{animation:talk .42s ease-in-out infinite alternate}
   @keyframes breathe{50%{transform:scale(1.025) translateY(-3px)}}
   @keyframes lean{from{transform:scale(1.03) rotate(-1.5deg)}to{transform:scale(1.05) rotate(1.5deg)}}
   @keyframes tilt{0%,100%{transform:rotate(0)}30%{transform:rotate(-6deg)}60%{transform:rotate(4deg)}}
   @keyframes talk{from{transform:translateY(0) scale(1)}to{transform:translateY(-6px) scale(1.02)}}
   @keyframes hop{0%{transform:translateY(0)}35%{transform:translateY(-7px)}70%{transform:translateY(1px)}100%{transform:translateY(0)}}
   .row.bot .av{animation:hop .55s ease-out 1}
-  @media (prefers-reduced-motion:reduce){.orb img,.row.bot .av{animation:none!important}}
+  @media (prefers-reduced-motion:reduce){.saly,.row.bot .av{animation:none!important}}
   .call-state{margin:0;font-size:20px;font-weight:800}
   .call-cap{margin:0;font-size:15px;color:#B6C0D0;max-height:7.5em;overflow:auto;line-height:1.5}
   .call-cap.bot{color:#EEF2F8}
@@ -180,8 +184,8 @@
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
   .row.user{justify-content:flex-end}
-  .av{width:38px;height:38px;border-radius:50%;flex:0 0 auto;overflow:hidden;padding:0;background:var(--brand-soft)}
-  .av img{width:100%;height:100%;object-fit:cover;display:block}
+  .av{width:44px;height:44px;flex:0 0 auto;overflow:hidden;padding:0}
+  .av img{width:100%;height:100%;object-fit:cover;object-position:50% 62%;display:block;transform:scale(1.35);transform-origin:50% 62%}
   .msg{padding:12px 15px;border-radius:16px;line-height:1.6;overflow-wrap:anywhere;font-size:15.5px;max-width:min(640px,88%)}
   .user .msg{background:var(--user);color:var(--user-ink);border-bottom-right-radius:5px;font-weight:600}
   .bot .msg{background:var(--card2);border:1px solid var(--line);border-top-left-radius:5px}
@@ -343,7 +347,7 @@
   <div class="grid">
     <section class="card chat" aria-labelledby="chat-h">
       <div class="card-h">
-        <span class="ico saly-ico"><img src="/saly-face.webp" alt=""></span>
+        <span class="saly saly-head" id="saly-head" aria-hidden="true"></span>
         <div>
           <h2 id="chat-h">Saly</h2>
           <p class="who">Salomon AI's personal assistant</p>
@@ -441,7 +445,7 @@
   <div class="callscreen" id="call" hidden role="dialog" aria-modal="true" aria-labelledby="call-h">
     <div class="call-box">
       <p class="call-top" id="call-h">On a call with Saly</p>
-      <button class="orb" id="call-orb" type="button" aria-label="Tap to interrupt or to finish speaking"><img src="/saly.webp" alt="Saly"></button>
+      <button class="orb" id="call-orb" type="button" aria-label="Tap to interrupt or to finish speaking"><span class="saly saly-call" id="saly-call"></span></button>
       <p class="call-state" id="call-state" aria-live="polite">Connecting…</p>
       <p class="call-cap" id="call-you"></p>
       <p class="call-cap bot" id="call-bot"></p>
@@ -506,12 +510,40 @@ function renderAnswer(container, text) {
   });
 }
 
+// ── Saly: frames drawn with Muse Image (blink, talk, think, happy) ──
+const SALY = {frames: ['base', 'blink', 'talk1', 'talk2', 'happy', 'think'], els: [], state: 'idle', t: null};
+function mountSaly(w) {
+  SALY.frames.forEach(f => { const i = el('img'); i.src = '/saly/' + f + '.webp'; i.alt = ''; i.dataset.f = f;
+                             if (f === 'base') i.className = 'on'; w.appendChild(i); });
+  w.dataset.state = 'idle'; SALY.els.push(w);
+}
+function salyShow(f) { SALY.els.forEach(w => w.querySelectorAll('img').forEach(i => i.classList.toggle('on', i.dataset.f === f))); }
+function salySet(state) {
+  SALY.state = state; clearTimeout(SALY.t);
+  SALY.els.forEach(w => { w.dataset.state = state; });
+  salyTick();
+}
+function salyTick() {
+  const st = SALY.state;
+  if (st === 'speaking') {
+    const r = Math.random();
+    salyShow(r < .38 ? 'talk1' : r < .72 ? 'talk2' : 'base');
+    SALY.t = setTimeout(salyTick, 100 + Math.random() * 90); return;
+  }
+  if (st === 'happy') { salyShow('happy'); SALY.t = setTimeout(() => salySet('idle'), 1500); return; }
+  salyShow(st === 'thinking' ? 'think' : 'base');
+  SALY.t = setTimeout(() => { salyShow('blink'); SALY.t = setTimeout(salyTick, 140); }, 1800 + Math.random() * 3200);
+}
+mountSaly(document.getElementById('saly-head'));
+mountSaly(document.getElementById('saly-call'));
+salyTick();
+
 function addRow(who) {
   const row = el('div', 'row ' + who);
   if (who === 'bot') {
     const av = el('span', 'av');
     const face = el('img');
-    face.src = '/saly-face.webp';
+    face.src = '/saly/base.webp';
     face.alt = 'Saly';
     av.appendChild(face);
     row.appendChild(av);
@@ -747,7 +779,9 @@ function replyButtons(questions) {
 }
 // Type the answer out a few characters at a time, like someone writing back.
 function typeOut(container, text) {
-  return new Promise(done => {
+  salySet('speaking');
+  return new Promise(fin => {
+    const done = () => { if (!call) salySet('happy'); fin(); };
     if (still || text.length > 1800) { renderAnswer(container, text); done(); return; }
     let i = 0;
     const step = Math.max(2, Math.round(text.length / 120));
@@ -797,7 +831,10 @@ if (canSpeak) {
 const callEl = document.getElementById('call');
 const callState = document.getElementById('call-state');
 let call = null;
-function setCall(state, label) { callEl.dataset.state = state; callState.textContent = label; if (call) call.state = state; }
+function setCall(state, label) {
+  callEl.dataset.state = state; callState.textContent = label; if (call) call.state = state;
+  salySet(state === 'thinking' ? 'thinking' : state === 'speaking' ? 'speaking' : 'idle');
+}
 function speakThen(text, done) {
   if (!canSpeak) { setTimeout(done, 300); return; }
   speechSynthesis.cancel();
@@ -899,6 +936,7 @@ function endCall() {
   try { speechSynthesis.cancel(); } catch {}
   try { c.proc.disconnect(); c.src.disconnect(); c.stream.getTracks().forEach(t => t.stop()); c.ctx.close(); } catch {}
   callEl.hidden = true;
+  salySet('idle');
 }
 document.getElementById('call-end').onclick = endCall;
 document.getElementById('call-orb').onclick = () => {
@@ -939,6 +977,7 @@ form.addEventListener('submit', async (e) => {
   const dots = el('span', 'typing'); dots.append(el('span'), el('span'), el('span'));
   wait.appendChild(dots);
   statusEl.textContent = 'Reading the live data…';
+  salySet('thinking');
   try {
     const r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                         body: JSON.stringify({messages: history})});
@@ -968,6 +1007,7 @@ form.addEventListener('submit', async (e) => {
     wait.textContent = 'Sorry, ' + err.message.charAt(0).toLowerCase() + err.message.slice(1);
     wait.classList.add('error');
     statusEl.textContent = '';
+    salySet('idle');
   } finally {
     sendBtn.disabled = false;
     chatEl.scrollTop = chatEl.scrollHeight;
