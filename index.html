@@ -171,9 +171,7 @@
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
   .row.user{justify-content:flex-end}
-  .av{width:44px;height:44px;border-radius:14px;flex:0 0 auto;overflow:hidden;padding:0}
-  .av img{width:100%;height:100%;object-fit:cover;display:block}
-  .bunny-face{width:120px;height:120px;border-radius:32px;object-fit:cover;display:block;margin:0 0 12px}
+  .av{width:30px;height:30px;border-radius:9px;flex:0 0 auto}
   .msg{padding:12px 15px;border-radius:16px;line-height:1.6;overflow-wrap:anywhere;font-size:15.5px;max-width:min(640px,88%)}
   .user .msg{background:var(--user);color:var(--user-ink);border-bottom-right-radius:5px;font-weight:600}
   .bot .msg{background:var(--card2);border:1px solid var(--line);border-top-left-radius:5px}
@@ -499,10 +497,9 @@ function addRow(who) {
   const row = el('div', 'row ' + who);
   if (who === 'bot') {
     const av = el('span', 'av');
-    const face = el('img');
-    face.src = '/bunny.jpg';
-    face.alt = '';
-    av.appendChild(face);
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    u.setAttribute('href', '#i-logo'); s.appendChild(u); av.appendChild(s);
     row.appendChild(av);
   }
   const msg = el('div', 'msg');
