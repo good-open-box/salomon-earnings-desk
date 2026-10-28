@@ -102,7 +102,7 @@
   .saly{position:relative;display:block;flex:0 0 auto;transform-origin:50% 100%}
   .saly img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:50% 100%;opacity:0;display:block}
   .saly img.on{opacity:1}
-  .saly-head{width:74px;height:96px;margin:-10px 0 -16px -4px}
+  .saly-head{width:84px;height:104px;margin:-12px -6px -18px -6px}
   .saly[data-state="idle"]{animation:breathe 3s ease-in-out infinite}
   .saly[data-state="thinking"]{animation:tilt 1.6s ease-in-out infinite}
   .saly[data-state="speaking"]{animation:talk .45s ease-in-out infinite alternate}
@@ -123,10 +123,10 @@
     padding:max(20px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(20px,env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
   .call-box{width:100%;max-width:460px;display:grid;justify-items:center;gap:14px;text-align:center}
   .call-top{margin:0;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9AA6BA}
-  .orb{width:220px;height:300px;border:0;cursor:pointer;display:grid;place-items:end center;padding:0;background:none;position:relative}
+  .orb{width:250px;height:310px;border:0;cursor:pointer;display:grid;place-items:end center;padding:0;background:none;position:relative}
   .orb::before{content:"";position:absolute;left:50%;bottom:6px;width:190px;height:190px;margin-left:-95px;border-radius:50%;
     background:radial-gradient(circle,rgba(16,185,129,.35),rgba(16,185,129,0) 70%);transition:transform .3s,opacity .3s}
-  .saly-call{position:relative;width:200px;height:300px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+  .saly-call{position:relative;width:250px;height:310px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
   .callscreen[data-state="hearing"] .orb::before{transform:scale(1.25)}
   .callscreen[data-state="thinking"] .orb::before{background:radial-gradient(circle,rgba(56,189,248,.35),rgba(56,189,248,0) 70%)}
   @keyframes breathe{50%{transform:scale(1.025) translateY(-3px)}}
@@ -185,7 +185,7 @@
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
   .row.user{justify-content:flex-end}
   .av{width:44px;height:44px;flex:0 0 auto;overflow:hidden;padding:0}
-  .av img{width:100%;height:100%;object-fit:cover;object-position:50% 62%;display:block;transform:scale(1.35);transform-origin:50% 62%}
+  .av img{width:100%;height:100%;object-fit:cover;display:block}
   .msg{padding:12px 15px;border-radius:16px;line-height:1.6;overflow-wrap:anywhere;font-size:15.5px;max-width:min(640px,88%)}
   .user .msg{background:var(--user);color:var(--user-ink);border-bottom-right-radius:5px;font-weight:600}
   .bot .msg{background:var(--card2);border:1px solid var(--line);border-top-left-radius:5px}
@@ -511,7 +511,7 @@ function renderAnswer(container, text) {
 }
 
 // ── Saly: frames drawn with Muse Image (blink, talk, think, happy) ──
-const SALY = {frames: ['base', 'blink', 'talk1', 'talk2', 'happy', 'think'], els: [], state: 'idle', t: null};
+const SALY = {frames: ['base', 'blink', 'talk1', 'talk2', 'happy', 'think', 'wave1', 'wave2'], els: [], state: 'idle', t: null, w: 0};
 function mountSaly(w) {
   SALY.frames.forEach(f => { const i = el('img'); i.src = '/saly/' + f + '.webp'; i.alt = ''; i.dataset.f = f;
                              if (f === 'base') i.className = 'on'; w.appendChild(i); });
@@ -519,7 +519,7 @@ function mountSaly(w) {
 }
 function salyShow(f) { SALY.els.forEach(w => w.querySelectorAll('img').forEach(i => i.classList.toggle('on', i.dataset.f === f))); }
 function salySet(state) {
-  SALY.state = state; clearTimeout(SALY.t);
+  SALY.state = state; SALY.w = 0; clearTimeout(SALY.t);
   SALY.els.forEach(w => { w.dataset.state = state; });
   salyTick();
 }
@@ -529,6 +529,10 @@ function salyTick() {
     const r = Math.random();
     salyShow(r < .38 ? 'talk1' : r < .72 ? 'talk2' : 'base');
     SALY.t = setTimeout(salyTick, 100 + Math.random() * 90); return;
+  }
+  if (st === 'wave') {   // waves hello: same paw, back and forth
+    SALY.w++; salyShow(SALY.w % 2 ? 'wave1' : 'wave2');
+    SALY.t = setTimeout(SALY.w >= 7 ? () => salySet('idle') : salyTick, 260); return;
   }
   if (st === 'happy') { salyShow('happy'); SALY.t = setTimeout(() => salySet('idle'), 1500); return; }
   salyShow(st === 'thinking' ? 'think' : 'base');
@@ -543,7 +547,7 @@ function addRow(who) {
   if (who === 'bot') {
     const av = el('span', 'av');
     const face = el('img');
-    face.src = '/saly/base.webp';
+    face.src = '/saly/face.webp';
     face.alt = 'Saly';
     av.appendChild(face);
     row.appendChild(av);
@@ -863,6 +867,7 @@ async function startCall() {
     proc.onaudioprocess = e => onCallAudio(e.inputBuffer.getChannelData(0));
     src.connect(proc); proc.connect(ctx.destination);
     setCall('speaking', 'Saly');
+    salySet('wave');
     const hello = "Hi, I'm Saly. What would you like to know?";
     document.getElementById('call-bot').textContent = hello;
     speakThen(hello, listen);
@@ -949,7 +954,10 @@ if (canSpeak && navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
   const cb = document.getElementById('call-start'); cb.hidden = false; cb.onclick = startCall;
 }
 
+const sleep = ms => new Promise(ok => setTimeout(ok, ms));
 async function showGreeting() {
+  salySet('wave');
+  const waved = sleep(still ? 0 : 1900);
   const msg = addRow('bot');
   const dots = el('span', 'typing'); dots.append(el('span'), el('span'), el('span'));
   msg.appendChild(dots);
@@ -960,6 +968,7 @@ async function showGreeting() {
     if (r.ok) { const d = await r.json(); if (d.text) g = d; }
   } catch {}
   if (history.length) { msg.textContent = ''; renderAnswer(msg, g.text); return; }
+  await waved;
   await typeOut(msg, g.text);
   if (g.replies && g.replies.length) msg.appendChild(replyButtons(g.replies));
 }
