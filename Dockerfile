@@ -2,7 +2,7 @@
 FROM python:3.11-slim
 RUN useradd --create-home --uid 10001 app
 WORKDIR /app
-COPY server.py index.html ./
+COPY server.py index.html saly.webp saly-face.webp ./
 # Starts as root only to hand the /data volume to uid 10001, then server.py drops root.
 ENV HOST=0.0.0.0 PORT=8080 PYTHONUNBUFFERED=1
 EXPOSE 8080

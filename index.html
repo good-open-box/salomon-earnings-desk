@@ -96,8 +96,10 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
   .card-h{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
   .card-h h2{font-size:16px;margin:0;font-weight:800}
+  .card-h .who{margin:1px 0 0;font-size:12px;color:var(--faint);font-weight:600}
   .card-h .sub{margin-left:auto;font-size:12.5px;color:var(--faint);font-weight:600}
   .ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand2)}
+  .saly-ico{overflow:hidden;width:40px;height:40px;border-radius:50%;background:var(--brand-soft)}.saly-ico img{width:100%;height:100%;object-fit:cover;display:block}
 
   /* Chat */
   .chat{display:flex;flex-direction:column;min-height:520px}
@@ -113,16 +115,23 @@
     padding:max(20px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(20px,env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
   .call-box{width:100%;max-width:460px;display:grid;justify-items:center;gap:14px;text-align:center}
   .call-top{margin:0;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9AA6BA}
-  .orb{width:150px;height:150px;border-radius:50%;border:0;cursor:pointer;display:grid;place-items:center;
-    background:radial-gradient(circle at 35% 30%,#6EE7B7,#10B981 45%,#065F46);box-shadow:0 0 0 0 rgba(16,185,129,.5);transition:transform .2s}
-  .orb span{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.25)}
-  .callscreen[data-state="listening"] .orb{animation:breathe 1.6s ease-in-out infinite}
-  .callscreen[data-state="hearing"] .orb{transform:scale(1.08);box-shadow:0 0 0 18px rgba(16,185,129,.18)}
-  .callscreen[data-state="thinking"] .orb{animation:spin 1.2s linear infinite;background:conic-gradient(#10B981,#38BDF8,#10B981)}
-  .callscreen[data-state="speaking"] .orb{animation:talk .5s ease-in-out infinite alternate}
-  @keyframes breathe{50%{box-shadow:0 0 0 22px rgba(16,185,129,0)}}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  @keyframes talk{to{transform:scale(1.06)}}
+  .orb{width:220px;height:260px;border:0;cursor:pointer;display:grid;place-items:end center;padding:0;background:none;position:relative}
+  .orb::before{content:"";position:absolute;left:50%;bottom:6px;width:190px;height:190px;margin-left:-95px;border-radius:50%;
+    background:radial-gradient(circle,rgba(16,185,129,.35),rgba(16,185,129,0) 70%);transition:transform .3s,opacity .3s}
+  .orb img{position:relative;height:250px;width:auto;display:block;transform-origin:50% 100%;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+  .callscreen[data-state="listening"] .orb img{animation:breathe 2.4s ease-in-out infinite}
+  .callscreen[data-state="hearing"] .orb img{animation:lean .9s ease-in-out infinite alternate}
+  .callscreen[data-state="hearing"] .orb::before{transform:scale(1.25)}
+  .callscreen[data-state="thinking"] .orb img{animation:tilt 1.4s ease-in-out infinite}
+  .callscreen[data-state="thinking"] .orb::before{background:radial-gradient(circle,rgba(56,189,248,.35),rgba(56,189,248,0) 70%)}
+  .callscreen[data-state="speaking"] .orb img{animation:talk .42s ease-in-out infinite alternate}
+  @keyframes breathe{50%{transform:scale(1.025) translateY(-3px)}}
+  @keyframes lean{from{transform:scale(1.03) rotate(-1.5deg)}to{transform:scale(1.05) rotate(1.5deg)}}
+  @keyframes tilt{0%,100%{transform:rotate(0)}30%{transform:rotate(-6deg)}60%{transform:rotate(4deg)}}
+  @keyframes talk{from{transform:translateY(0) scale(1)}to{transform:translateY(-6px) scale(1.02)}}
+  @keyframes hop{0%{transform:translateY(0)}35%{transform:translateY(-7px)}70%{transform:translateY(1px)}100%{transform:translateY(0)}}
+  .row.bot .av{animation:hop .55s ease-out 1}
+  @media (prefers-reduced-motion:reduce){.orb img,.row.bot .av{animation:none!important}}
   .call-state{margin:0;font-size:20px;font-weight:800}
   .call-cap{margin:0;font-size:15px;color:#B6C0D0;max-height:7.5em;overflow:auto;line-height:1.5}
   .call-cap.bot{color:#EEF2F8}
@@ -171,7 +180,8 @@
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
   .row.user{justify-content:flex-end}
-  .av{width:30px;height:30px;border-radius:9px;flex:0 0 auto}
+  .av{width:38px;height:38px;border-radius:50%;flex:0 0 auto;overflow:hidden;padding:0;background:var(--brand-soft)}
+  .av img{width:100%;height:100%;object-fit:cover;display:block}
   .msg{padding:12px 15px;border-radius:16px;line-height:1.6;overflow-wrap:anywhere;font-size:15.5px;max-width:min(640px,88%)}
   .user .msg{background:var(--user);color:var(--user-ink);border-bottom-right-radius:5px;font-weight:600}
   .bot .msg{background:var(--card2);border:1px solid var(--line);border-top-left-radius:5px}
@@ -333,9 +343,12 @@
   <div class="grid">
     <section class="card chat" aria-labelledby="chat-h">
       <div class="card-h">
-        <span class="ico"><svg class="i"><use href="#i-chat"/></svg></span>
-        <h2 id="chat-h">Ask the desk</h2>
-        <button class="mini callbtn" id="call-start" type="button" hidden aria-label="Call the desk: talk hands-free"><svg class="i"><use href="#i-phone"/></svg><span>Call the desk</span></button>
+        <span class="ico saly-ico"><img src="/saly-face.webp" alt=""></span>
+        <div>
+          <h2 id="chat-h">Saly</h2>
+          <p class="who">Salomon AI's personal assistant</p>
+        </div>
+        <button class="mini callbtn" id="call-start" type="button" hidden aria-label="Call the desk: talk hands-free"><svg class="i"><use href="#i-phone"/></svg><span>Call Saly</span></button>
         <button class="mini speak" id="speak" type="button" hidden aria-pressed="false" aria-label="Read answers aloud"><svg class="i"><use href="#i-speaker"/></svg><span class="speak-txt">Voice off</span></button>
       </div>
       <div class="watch" id="watch" hidden aria-label="Your watchlist"><span class="lbl">Your watchlist</span></div>
@@ -427,12 +440,12 @@
 
   <div class="callscreen" id="call" hidden role="dialog" aria-modal="true" aria-labelledby="call-h">
     <div class="call-box">
-      <p class="call-top" id="call-h">On a call with the Salomon Earnings Desk</p>
-      <button class="orb" id="call-orb" type="button" aria-label="Tap to interrupt or to finish speaking"><span></span></button>
+      <p class="call-top" id="call-h">On a call with Saly</p>
+      <button class="orb" id="call-orb" type="button" aria-label="Tap to interrupt or to finish speaking"><img src="/saly.webp" alt="Saly"></button>
       <p class="call-state" id="call-state" aria-live="polite">Connecting…</p>
       <p class="call-cap" id="call-you"></p>
       <p class="call-cap bot" id="call-bot"></p>
-      <p class="call-hint">Talk naturally. Pause when you're done. Tap the circle to interrupt.</p>
+      <p class="call-hint">Talk naturally. Pause when you're done. Tap Saly to interrupt.</p>
       <button class="btn hang" id="call-end" type="button">Hang up</button>
     </div>
   </div>
@@ -497,9 +510,10 @@ function addRow(who) {
   const row = el('div', 'row ' + who);
   if (who === 'bot') {
     const av = el('span', 'av');
-    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    const u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    u.setAttribute('href', '#i-logo'); s.appendChild(u); av.appendChild(s);
+    const face = el('img');
+    face.src = '/saly-face.webp';
+    face.alt = 'Saly';
+    av.appendChild(face);
     row.appendChild(av);
   }
   const msg = el('div', 'msg');
@@ -719,7 +733,7 @@ async function checkHealth() {
 }
 checkHealth();
 
-const GREETING = "Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what Wall Street expects, or what Salomon predicts for a company. Every call is locked before the report and graded after, misses included.";
+const GREETING = "Hi, I'm Saly, Salomon AI's personal assistant. Ask me who reports this week, what Wall Street expects, or what Salomon predicts for a company. Every call is locked before the report and graded after, misses included.";
 const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function replyButtons(questions) {
   const box = el('div', 'greet-actions');
@@ -811,8 +825,8 @@ async function startCall() {
     call = {stream, ctx, src, proc, chunks: [], state: 'thinking', turns: 0, idle: 0};
     proc.onaudioprocess = e => onCallAudio(e.inputBuffer.getChannelData(0));
     src.connect(proc); proc.connect(ctx.destination);
-    setCall('speaking', 'Salomon');
-    const hello = "Hi, you're through to the Salomon Earnings Desk. What would you like to know?";
+    setCall('speaking', 'Saly');
+    const hello = "Hi, I'm Saly. What would you like to know?";
     document.getElementById('call-bot').textContent = hello;
     speakThen(hello, listen);
   } catch (e) {
@@ -843,8 +857,8 @@ function onCallAudio(buf) {
   if (call.heard && (call.quiet > 1.2 || elapsed > 15)) finishTurn();
   else if (!call.heard && elapsed > 8) {
     call.idle++;
-    if (call.idle >= 2) { setCall('speaking', 'Salomon'); speakThen("I'll hang up for now. Talk soon.", endCall); }
-    else { setCall('speaking', 'Salomon'); speakThen("I'm still here. Ask me about any company's earnings.", listen); }
+    if (call.idle >= 2) { setCall('speaking', 'Saly'); speakThen("I'll hang up for now. Talk soon.", endCall); }
+    else { setCall('speaking', 'Saly'); speakThen("I'm still here. Ask me about any company's earnings.", listen); }
   }
 }
 async function finishTurn() {
@@ -857,7 +871,7 @@ async function finishTurn() {
     const t = await tr.json();
     if (!tr.ok) throw new Error(t.error || 'transcribe');
     const q = (t.text || '').trim();
-    if (!q) { setCall('speaking', 'Salomon'); speakThen("Sorry, I didn't catch that. Could you say it again?", listen); return; }
+    if (!q) { setCall('speaking', 'Saly'); speakThen("Sorry, I didn't catch that. Could you say it again?", listen); return; }
     document.getElementById('call-you').textContent = '“' + q + '”';
     addRow('user').textContent = q;
     history.push({role: 'user', content: q});
@@ -870,11 +884,11 @@ async function finishTurn() {
     if (!call) return;
     document.getElementById('call-bot').textContent = plain(d.answer);
     call.turns++;
-    setCall('speaking', 'Salomon');
+    setCall('speaking', 'Saly');
     speakThen(d.answer, call.turns >= 20 ? endCall : listen);
   } catch (e) {
     if (!call) return;
-    setCall('speaking', 'Salomon');
+    setCall('speaking', 'Saly');
     const msg = /limit|enough|too many/i.test(e.message) ? e.message : "Sorry, I lost the line for a second. Try again.";
     speakThen(msg, /limit|enough|too many/i.test(e.message) ? endCall : listen);
   }

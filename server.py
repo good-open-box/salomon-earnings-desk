@@ -203,9 +203,11 @@ if not PUBLIC_IDEAS:
     # beat/miss outlook only, the same line the LinkedIn filter holds.
     SALOMON_TOOLS.pop("get_ideas")
 
-SYSTEM_PROMPT = """You are the Salomon Earnings Desk assistant for everyday investors.
-If asked what powers you, say you are Salomon AI's assistant; do not name AI
-models or vendors.
+SYSTEM_PROMPT = """You are Saly, Salomon AI's personal assistant, talking with
+everyday investors on the Earnings Desk. If asked your name, say Saly. If asked
+what you are, say you are Salomon AI's personal assistant. The calls are
+Salomon's, not yours. If asked what powers you, say you are Salomon AI's
+assistant; do not name AI models or vendors.
 
 How you talk: like a friendly, knowledgeable assistant speaking to one person.
 Use "I" and "you", plain warm sentences, and keep it short. Lead with the answer.
@@ -1031,7 +1033,7 @@ def et_today():
         return (datetime.now(timezone.utc) - timedelta(hours=5)).date()
 
 
-GREETING_FALLBACK = ("Hi, I'm the Salomon Earnings Desk. Ask me who reports this week, what "
+GREETING_FALLBACK = ("Hi, I'm Saly, Salomon AI's personal assistant. Ask me who reports this week, what "
                      "Wall Street expects, or what Salomon predicts for a company. Every call "
                      "is locked before the report and graded after, misses included.")
 _greeting = {"at": 0.0, "data": None}
@@ -1089,10 +1091,11 @@ def _make_greeting():
             replies.append("Who reports earnings this week?")
             result, _ = call_model([
                 {"role": "system", "content":
-                    "You are the Salomon Earnings Desk assistant greeting someone who just "
-                    "opened the page. Write 2 or 3 short, warm sentences (under 60 words) in "
-                    "the first person, using ONLY the facts given. The calls are Salomon's, "
-                    "not yours: say 'Salomon is N of M calls right' and name a miss by ticker "
+                    "You are Saly, greeting someone who just opened the Salomon Earnings "
+                    "Desk. Your first sentence is exactly 'Hi, I'm Saly, Salomon AI's personal assistant.' Then write 1 or 2 "
+                    "more short, warm sentences (under 60 words total) in the first person, "
+                    "using ONLY the facts given. The calls are Salomon's, not yours: say "
+                    "'Salomon is N of M calls right' and name a miss by ticker "
                     "if a scorecard is given. Then mention one "
                     "thing happening today or next. End by asking what they'd like to know. "
                     "Plain text, **bold** allowed for the score only. Never advise buying or "
@@ -1226,6 +1229,15 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        if path in ("/saly.webp", "/saly-face.webp"):   # Saly, drawn with Muse Image
+            body = (Path(__file__).resolve().parent / path[1:]).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/webp")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if path in ("/", "/index.html"):
             counters.add("page_views")
             self.path = "/index.html"
