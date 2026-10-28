@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#080B12" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F6F8FB" media="(prefers-color-scheme: light)">
-<meta name="description" content="Salomon AI Earnings Desk: earnings season explained in plain words, with calls locked before every report and graded after.">
+<meta name="description" content="Salomon AI Earnings Desk: earnings season explained in plain words, with every call locked before its report and graded after.">
 <title>Earnings Desk · Salomon AI</title>
 <link rel="icon" href="https://slmn.trade/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="https://slmn.trade/apple-touch-icon.png">
@@ -79,6 +79,14 @@
   .trust{display:flex;flex-wrap:wrap;gap:8px 18px;margin:18px 0 0;padding:0;list-style:none;color:var(--muted);font-size:14px;font-weight:600}
   .trust li{display:flex;align-items:center;gap:7px}
   .trust svg{color:var(--brand2)}
+  .meta-badge{border:1px solid var(--line2);background:var(--card);border-radius:999px;padding:3px 10px;color:var(--text);font-size:13px}
+  .proofline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:16px 0 0;padding:10px 14px;border-radius:12px;
+    border:1px solid var(--line);background:var(--brand-soft);color:var(--text);font-size:14px;font-weight:600;text-decoration:none;max-width:100%}
+  .proofline b{color:var(--brand2);font-size:16px}
+  .proofline .sep{color:var(--faint)}
+  .proofline .go{color:var(--brand2);margin-left:auto}
+  .proofline .early{color:var(--muted);font-weight:500;font-size:13px}
+  @media (max-width:520px){.proofline .sep{display:none}.proofline .go{margin-left:0}}
 
   /* Grid */
   .grid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
@@ -315,9 +323,11 @@
     <p class="lede">Ask who reports this week, what Wall Street expects, and what Salomon AI predicts.
       Every call is locked before the report and graded after, so you can see exactly how often it's right.</p>
     <ul class="trust">
-      <li><svg class="i"><use href="#i-lock"/></svg>Calls locked before every report</li>
+      <li><svg class="i"><use href="#i-lock"/></svg>Each call locked before its report</li>
       <li><svg class="i"><use href="#i-shield"/></svg>Read-only, never trades</li>
+      <li class="meta-badge">Built on Meta Muse</li>
     </ul>
+    <a class="proofline" id="proofline" href="#fz-verify" hidden></a>
   </header>
 
   <div class="grid">
@@ -341,38 +351,6 @@
     </section>
 
     <aside class="side">
-      <section class="card game" aria-labelledby="game-h">
-        <div class="card-h">
-          <span class="ico"><svg class="i"><use href="#i-target"/></svg></span>
-          <h2 id="game-h">You vs Salomon</h2>
-          <span class="sub" id="gm-players"></span>
-        </div>
-        <div class="gm-top">
-          <p class="gm-pitch">Can you beat the AI? Pick <b>Beat</b> or <b>Miss</b> before each report. Your pick locks, then both get graded on the real result.</p>
-          <div class="gm-score" id="gm-score" hidden>
-            <div><b id="gm-you">0/0</b><span>You</span></div>
-            <div class="vs">vs</div>
-            <div><b id="gm-sal">0/0</b><span>Salomon, same calls</span></div>
-          </div>
-          <p class="gm-news" id="gm-news" hidden></p>
-        </div>
-        <h3 class="fz-sec">Open picks</h3>
-        <ul class="fz-list gm-list" id="gm-open"><li class="gm-empty">Loading…</li></ul>
-        <details class="gm-more" id="gm-more" hidden><summary id="gm-more-s">More picks</summary><ul class="fz-list gm-list" id="gm-open2"></ul></details>
-        <h3 class="fz-sec" id="gm-res-h" hidden>Your results</h3>
-        <ul class="fz-list gm-list" id="gm-res"></ul>
-        <div class="fz-foot gm-foot">
-          <h3 class="fz-sec" style="padding:0 0 6px">Leaderboard</h3>
-          <ol class="gm-board" id="gm-board"></ol>
-          <form id="gm-nick-form" class="gm-nick" hidden>
-            <label class="visually-hidden" for="gm-nick">Your leaderboard name</label>
-            <input id="gm-nick" maxlength="16" autocomplete="off" placeholder="Your leaderboard name">
-            <button class="btn ghost sm" type="submit">Save</button>
-          </form>
-          <div class="share-row"><button class="btn ghost sm" id="gm-share" type="button" hidden><svg class="i"><use href="#i-share"/></svg>Share my score</button></div>
-          <p class="gm-rules" id="gm-rules"></p>
-        </div>
-      </section>
       <section class="card" aria-labelledby="frozen-h">
         <div class="card-h">
           <span class="ico"><svg class="i"><use href="#i-lock"/></svg></span>
@@ -411,6 +389,38 @@
           <li><span>Open <b>Settings, then API key, then Create</b>.</span></li>
           <li><span>In Muse, add the <b>Salomon AI</b> connector and paste your key.</span></li>
         </ol>
+      </section>
+      <section class="card game" aria-labelledby="game-h">
+        <div class="card-h">
+          <span class="ico"><svg class="i"><use href="#i-target"/></svg></span>
+          <h2 id="game-h">You vs Salomon</h2>
+          <span class="sub" id="gm-players"></span>
+        </div>
+        <div class="gm-top">
+          <p class="gm-pitch">Can you beat the AI? Pick <b>Beat</b> or <b>Miss</b> before each report. Your pick locks, then both get graded on the real result.</p>
+          <div class="gm-score" id="gm-score" hidden>
+            <div><b id="gm-you">0/0</b><span>You</span></div>
+            <div class="vs">vs</div>
+            <div><b id="gm-sal">0/0</b><span>Salomon, same calls</span></div>
+          </div>
+          <p class="gm-news" id="gm-news" hidden></p>
+        </div>
+        <h3 class="fz-sec">Open picks</h3>
+        <ul class="fz-list gm-list" id="gm-open"><li class="gm-empty">Loading…</li></ul>
+        <details class="gm-more" id="gm-more" hidden><summary id="gm-more-s">More picks</summary><ul class="fz-list gm-list" id="gm-open2"></ul></details>
+        <h3 class="fz-sec" id="gm-res-h" hidden>Your results</h3>
+        <ul class="fz-list gm-list" id="gm-res"></ul>
+        <div class="fz-foot gm-foot">
+          <h3 class="fz-sec" style="padding:0 0 6px">Leaderboard</h3>
+          <ol class="gm-board" id="gm-board"></ol>
+          <form id="gm-nick-form" class="gm-nick" hidden>
+            <label class="visually-hidden" for="gm-nick">Your leaderboard name</label>
+            <input id="gm-nick" maxlength="16" autocomplete="off" placeholder="Your leaderboard name">
+            <button class="btn ghost sm" type="submit">Save</button>
+          </form>
+          <div class="share-row"><button class="btn ghost sm" id="gm-share" type="button" hidden><svg class="i"><use href="#i-share"/></svg>Share my score</button></div>
+          <p class="gm-rules" id="gm-rules"></p>
+        </div>
       </section>
     </aside>
   </div>
@@ -806,8 +816,10 @@ async function startCall() {
     document.getElementById('call-bot').textContent = hello;
     speakThen(hello, listen);
   } catch (e) {
-    setCall('thinking', 'Microphone not available');
-    setTimeout(endCall, 2000);
+    const blocked = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+    setCall('thinking', blocked ? 'Microphone is blocked. Allow it for this site in your browser settings, or type your question instead.'
+                                : 'No microphone found. You can type your question instead.');
+    setTimeout(() => { endCall(); document.getElementById('input').focus(); }, 4500);
   }
 }
 function listen() {
@@ -1195,7 +1207,8 @@ async function loadFrozen() {
       big.appendChild(el('small', '', 'graded'));
       score.textContent = Math.round(sc.pct) + '% right. ' + upcoming.length +
         ' still waiting for their report. ' +
-        (notCounted.length ? notCounted.length + ' not counted (data mismatch, shown below). ' : '') + book;
+        (notCounted.length ? notCounted.length + ' not counted (data mismatch, shown below). ' : '') +
+        'Early record: ' + sc.graded + ' graded so far, so treat the percent as a start, not proof. It grows every report day. ' + book;
     } else {
       big.append(String(calls.length));
       big.appendChild(el('small', '', 'calls locked'));
@@ -1230,6 +1243,14 @@ async function loadFrozen() {
     }
     proof.append('A beat means actual EPS at or above the estimate. Not financial advice.');
     renderVerify(calls, d.anchors || []);
+    if (sc.graded) {
+      const pl = document.getElementById('proofline'); pl.textContent = '';
+      const b = el('b', '', sc.correct + ' of ' + sc.graded + ' right');
+      pl.append(b, el('span', 'early', 'early record'), el('span', 'sep', '·'), 'each call locked before its report',
+                el('span', 'sep', '·'), (d.anchors || []).length ? 'stamped in Bitcoin' : 'tamper-checked', el('span', 'go', 'Verify it yourself →'));
+      pl.hidden = false;
+      pl.onclick = () => { const v = document.getElementById('fz-verify'); if (v) v.open = true; };
+    }
   } catch (e) {
     score.textContent = 'Frozen calls are unavailable right now.';
   }
