@@ -102,10 +102,28 @@
   .saly{position:relative;display:block;flex:0 0 auto;transform-origin:50% 100%}
   .saly img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:50% 100%;opacity:0;display:block}
   .saly img.on{opacity:1}
+  .saly img.ear{opacity:0;transition:transform .35s ease;animation:ear-sway 6s ease-in-out infinite}
+  .saly.ears img.ear{opacity:1}
+  .saly img.ear-r{animation-delay:-3s}
+  .saly.tw-l img.ear-l{animation:ear-twitch-l .42s ease-in-out}
+  .saly.tw-r img.ear-r{animation:ear-twitch-r .42s ease-in-out}
+  .saly[data-state="speaking"] img.ear{animation:ear-talk 1.3s ease-in-out infinite}
+  .saly[data-mood="perk"] img.ear-l{transform:rotate(-5deg) translateY(-3px)}
+  .saly[data-mood="perk"] img.ear-r{transform:rotate(5deg) translateY(-3px)}
+  .saly[data-mood="droop"] img.ear-l{transform:rotate(5deg)}
+  .saly[data-mood="droop"] img.ear-r{transform:rotate(-5deg)}
+  @keyframes ear-sway{0%,100%{rotate:0deg}50%{rotate:1.6deg}}
+  @keyframes ear-twitch-l{0%,100%{rotate:0deg}35%{rotate:-7deg}65%{rotate:3deg}}
+  @keyframes ear-twitch-r{0%,100%{rotate:0deg}35%{rotate:7deg}65%{rotate:-3deg}}
+  @keyframes ear-talk{0%,100%{rotate:0deg}50%{rotate:-2.2deg}}
+  @media (prefers-reduced-motion:reduce){.saly img.ear{animation:none!important}}
   .saly-head{width:84px;height:104px;margin:-12px -6px -18px -6px}
   .saly[data-state="idle"]{animation:look 8s ease-in-out infinite}
   .saly-call[data-state="idle"]{animation:look-wide 8s ease-in-out infinite}
   .saly[data-state="thinking"]{animation:tilt 2.6s ease-in-out infinite}
+  .saly[data-state="speaking"]{animation:talk .36s ease-in-out infinite alternate}
+  .saly[data-state="happy"]{animation:hop .7s ease-in-out 2}
+  .saly[data-state="wave"]{animation:lean 1.1s ease-in-out infinite alternate}
 
   /* Chat */
   .chat{display:flex;flex-direction:column;min-height:520px}
@@ -539,18 +557,52 @@ function renderAnswer(container, text) {
   });
 }
 
-// ── Saly: frames drawn with Muse Image (blink, talk, think, happy) ──
-const SALY = {frames: ['base', 'blink', 'talk1', 'talk2', 'happy', 'think', 'wave1', 'wave2'], els: [], state: 'idle', t: null, w: 0};
+// ── Saly: frames drawn with Muse Image; her ears cut out with SAM 3.1 so they move on their own ──
+const SALY = {frames: ['base', 'blink', 'talk1', 'talk2', 'happy', 'think', 'wave1', 'wave2', 'mA', 'mE', 'mO', 'mM', 'mF',
+                       'surprised', 'laugh', 'concerned', 'excited', 'wink', 'lookL', 'lookR', 'lookD', 'listen', 'nod'],
+              puppet: new Set(), els: [], state: 'idle', t: null, w: 0, faces: null, cur: 'base'};
+const SALY_V = '?v=layers1';
 function mountSaly(w) {
-  SALY.frames.forEach(f => { const i = el('img'); i.src = '/saly/' + f + '.webp?v=work'; i.alt = ''; i.dataset.f = f;
+  ['l', 'r'].forEach(sd => { const i = el('img', 'ear ear-' + sd); i.src = '/saly/ear-' + sd + '.webp' + SALY_V; i.alt = ''; w.appendChild(i); });
+  SALY.frames.forEach(f => { const i = el('img'); i.src = '/saly/' + f + '.webp' + SALY_V; i.alt = ''; i.dataset.f = f;
                              if (f === 'base') i.className = 'on'; w.appendChild(i); });
   w.dataset.state = 'idle'; SALY.els.push(w);
 }
-function salyShow(f) { SALY.els.forEach(w => w.querySelectorAll('img').forEach(i => i.classList.toggle('on', i.dataset.f === f))); }
+// Layers: frames whose ears match her base pose also come without ears (-h), and the
+// separate ear pictures sway, twitch and perk up on top of them.
+fetch('/saly/layers.json' + SALY_V).then(r => r.ok ? r.json() : null).then(L => {
+  if (!L || !L.ears) return;
+  SALY.puppet = new Set(L.puppet || []);
+  SALY.els.forEach(w => {
+    ['l', 'r'].forEach(sd => { const e = w.querySelector('.ear-' + sd), p = L.ears[sd];
+      if (e && p) e.style.transformOrigin = p.pivot_x_pct + '% ' + p.pivot_y_pct + '%'; });
+    SALY.puppet.forEach(f => { const i = el('img'); i.src = '/saly/' + f + '-h.webp' + SALY_V; i.alt = ''; i.dataset.f = f + '-h'; w.appendChild(i); });
+  });
+  salyShow(SALY.cur);
+}).catch(() => {});
+function salyShow(f) {
+  SALY.cur = f;
+  const layered = SALY.puppet.has(f), key = layered ? f + '-h' : f;
+  SALY.els.forEach(w => {
+    w.classList.toggle('ears', layered);
+    w.querySelectorAll('img[data-f]').forEach(i => i.classList.toggle('on', i.dataset.f === key));
+  });
+}
+function salyMood(m) { SALY.els.forEach(w => { w.dataset.mood = m || ''; }); }
 function salySet(state) {
-  SALY.state = state; SALY.w = 0; clearTimeout(SALY.t);
+  SALY.state = state; SALY.w = 0; clearTimeout(SALY.t); clearTimeout(SALY.pt); clearTimeout(SALY.ft);
   SALY.els.forEach(w => { w.dataset.state = state; });
+  if (state !== 'speaking') salyMood(state === 'happy' ? 'perk' : state === 'listening' ? 'perk' : '');
   salyTick();
+  if (state === 'speaking') salyPulse();
+}
+// Her mouth keeps moving while she speaks even when the browser's speech engine
+// never fires its start events (common on phones): a steady pulse under the
+// sound-by-sound shapes from salyRead.
+function salyPulse() {
+  if (SALY.state !== 'speaking') return;
+  if (!SALY.reading) { SALY.p = !SALY.p; salyShow(SALY.p ? 'talk2' : 'talk1'); }
+  SALY.pt = setTimeout(salyPulse, 150);
 }
 function salyTick() {
   const st = SALY.state;
@@ -560,30 +612,63 @@ function salyTick() {
     SALY.t = setTimeout(SALY.w >= 7 ? () => salySet('idle') : salyTick, 260); return;
   }
   if (st === 'happy') { salyShow('happy'); SALY.t = setTimeout(() => salySet('idle'), 1500); return; }
-  salyShow(st === 'thinking' ? 'think' : 'base');
-  SALY.t = setTimeout(() => { salyShow('blink'); SALY.t = setTimeout(salyTick, 140); }, 1800 + Math.random() * 3200);
+  const rest = st === 'thinking' ? 'think' : st === 'listening' ? 'listen' : 'base';
+  salyShow(rest);
+  // alive while idle: blinks, and now and then a glance to one side or an ear twitch
+  SALY.t = setTimeout(() => {
+    const r = Math.random();
+    if (rest === 'base' && r < 0.22) { salyShow(r < 0.11 ? 'lookL' : 'lookR'); SALY.t = setTimeout(salyTick, 700 + Math.random() * 600); return; }
+    if (r < 0.4) salyTwitch();
+    salyShow(rest === 'base' ? 'blink' : rest === 'listen' ? 'listen' : 'blink');
+    SALY.t = setTimeout(salyTick, 140);
+  }, 1800 + Math.random() * 3200);
 }
-// Mouth follows the words being said or shown: open on vowels, half-open on
-// consonants, closed on spaces, a short rest at commas and full stops.
+function salyTwitch() {
+  const sd = Math.random() < 0.5 ? 'l' : 'r';
+  SALY.els.forEach(w => { w.classList.add('tw-' + sd); setTimeout(() => w.classList.remove('tw-' + sd), 420); });
+}
+// Mouth follows the sounds of the words: 'ah', 'ee', 'oo', closed lips for m/b/p,
+// teeth on lip for f/v; a short rest at commas and full stops.
+const SALY_MOUTH = c => /[a]/i.test(c) ? 'mA' : /[eiy]/i.test(c) ? 'mE' : /[ouw]/i.test(c) ? 'mO'
+                      : /[mbp]/i.test(c) ? 'mM' : /[fv]/i.test(c) ? 'mF' : /[a-z0-9]/i.test(c) ? 'talk1' : 'base';
 function salyRead(text, cps) {
   clearTimeout(SALY.mt);
   let i = 0;
+  SALY.reading = true;
   const stride = Math.max(1, Math.round(cps * 0.09));
   const step = () => {
-    if (SALY.state !== 'speaking') return;
-    if (i >= text.length) { salyShow('base'); return; }
+    if (SALY.state !== 'speaking') { SALY.reading = false; return; }
+    if (i >= text.length) { SALY.reading = false; salyShow('base'); return; }
+    salyShow(SALY_MOUTH(text[i]));
     const c = text[i];
-    salyShow(/[aeiouy]/i.test(c) ? 'talk2' : /[a-z0-9]/i.test(c) ? 'talk1' : 'base');
     const rest = /[.!?]/.test(c) ? 380 : /[,;:]/.test(c) ? 200 : 0;
     i += stride;
     SALY.mt = setTimeout(step, 90 + rest);
   };
   step();
 }
+// Muse Spark picks a face for each sentence (/api/faces); she shows it as she starts
+// the sentence, then talks. Ears perk up on good news and droop on bad news.
+const SALY_FACE = {happy: 'happy', excited: 'excited', laugh: 'laugh', surprised: 'surprised', concerned: 'concerned',
+                   thinking: 'think', wink: 'wink', nod: 'nod', reading: 'lookD'};
+function salySentence(i, text) {
+  const face = SALY.faces && SALY.faces[i];
+  salyMood(['happy', 'excited', 'laugh', 'surprised'].includes(face) ? 'perk' : face === 'concerned' ? 'droop' : '');
+  const f = SALY_FACE[face];
+  clearTimeout(SALY.ft); clearTimeout(SALY.mt);
+  if (!f) { salyRead(text, 14); return; }
+  SALY.reading = true; salyShow(f);
+  SALY.ft = setTimeout(() => { if (SALY.state === 'speaking') salyRead(text, 14); }, 520);
+}
+function salyFaces(parts) {
+  SALY.faces = null;
+  fetch('/api/faces', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({s: parts.slice(0, 12)})})
+    .then(r => r.ok ? r.json() : null).then(d => { if (d && Array.isArray(d.faces)) SALY.faces = d.faces; }).catch(() => {});
+}
 // After she finishes: her face matches what she said.
 function salyReact(text) {
   if (/\b(wrong|missed|sorry|not counted|couldn'?t|can'?t|unavailable|no data|limit)\b/i.test(text)) {
-    salySet('thinking'); SALY.t = setTimeout(() => salySet('idle'), 1400);
+    salySet('thinking'); salyShow('concerned'); salyMood('droop'); SALY.t = setTimeout(() => salySet('idle'), 1400);
   } else if (/\b(beat|right|correct|welcome|great)\b/i.test(text)) salySet('happy');
   else salySet('idle');
 }
@@ -882,22 +967,30 @@ const callState = document.getElementById('call-state');
 let call = null;
 function setCall(state, label) {
   callEl.dataset.state = state; callState.textContent = label; if (call) call.state = state;
-  salySet(state === 'thinking' ? 'thinking' : state === 'speaking' ? 'speaking' : 'idle');
+  salySet(state === 'thinking' ? 'thinking' : state === 'speaking' ? 'speaking'
+          : state === 'listening' || state === 'hearing' ? 'listening' : 'idle');
 }
 function speakThen(text, done) {
   if (!canSpeak) { setTimeout(done, 300); return; }
   speechSynthesis.cancel();
-  const clean = plain(text).replace(/Not financial advice.*$/i, 'Not financial advice.');
+  // Speak the answer in its own language: a French answer gets a French voice
+  // and the French disclaimer, not an English voice reading French.
+  const fr = /[àâçéèêîôûù]|voici|aujourd|marché|société|conseil financier/i.test(text);
+  const clean = plain(text).replace(/(not financial advice|pas un conseil financier).*$/i,
+                                    fr ? 'Pas un conseil financier.' : 'Not financial advice.');
   const parts = clean.match(/[^.!?]+[.!?]*/g) || [clean];   // sentence by sentence: long utterances stall in some browsers
   let finished = false;
+  salyFaces(parts.map(t => t.trim()));
   SALY.voice = true; salySet('speaking');
   const finish = () => { if (!finished) { finished = true; clearTimeout(guard); SALY.voice = false;
                                           if (!call) salyReact(clean); done(); } };
   const guard = setTimeout(finish, clean.split(/\s+/).length * 450 + 4000);
   parts.forEach((t, i) => {
-    const u = new SpeechSynthesisUtterance(t.trim()); u.rate = 1.0; u.pitch = 1.08; u.lang = 'en-US';
-    if (salyVoice) u.voice = salyVoice;
-    u.onstart = () => { if (SALY.state === 'speaking') salyRead(t.trim(), 14); };
+    const u = new SpeechSynthesisUtterance(t.trim()); u.rate = 1.0; u.pitch = 1.08;
+    u.lang = fr ? 'fr-FR' : 'en-US';
+    const v = speechSynthesis.getVoices().find(x => fr ? /^fr/i.test(x.lang) : /^en[-_]/i.test(x.lang));
+    if (v) u.voice = v; else if (salyVoice && !fr) u.voice = salyVoice;
+    u.onstart = () => { if (SALY.state === 'speaking') salySentence(i, t.trim()); };
     if (i === parts.length - 1) { u.onend = finish; u.onerror = finish; }
     speechSynthesis.speak(u);
   });

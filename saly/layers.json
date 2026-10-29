@@ -1,0 +1,43 @@
+{
+ "puppet": [
+  "base",
+  "blink",
+  "talk1",
+  "talk2",
+  "happy",
+  "mA",
+  "mE",
+  "mO",
+  "mM",
+  "mF",
+  "surprised",
+  "laugh",
+  "excited",
+  "wink",
+  "lookL",
+  "lookR",
+  "lookD",
+  "nod"
+ ],
+ "posed": [
+  "concerned",
+  "listen",
+  "think",
+  "wave1",
+  "wave2"
+ ],
+ "ears": {
+  "l": {
+   "pivot_x_pct": 24.42,
+   "pivot_y_pct": 37.5
+  },
+  "r": {
+   "pivot_x_pct": 64.72,
+   "pivot_y_pct": 38.34
+  }
+ },
+ "size": [
+  400,
+  495
+ ]
+}

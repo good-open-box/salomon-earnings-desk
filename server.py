@@ -158,6 +158,44 @@ def transcribe_wav(wav):
     return (out.get("transcript") or "").strip()
 
 
+FACES_DAY = _env_int("FACES_DAY", 2000)
+FACES = ("neutral", "happy", "excited", "laugh", "surprised", "concerned", "thinking", "wink", "nod", "reading")
+FACES_PROMPT = (
+    "You are choosing Saly's facial expression for each sentence she is about to say out loud. "
+    "Saly is a friendly bunny assistant for an earnings desk. Pick the face that fits each sentence: "
+    "neutral (plain facts), happy (good news, a right call, a welcome), excited (a big win or surprise "
+    "on the upside), laugh (a joke or playful line), surprised (something unexpected), concerned (a miss, "
+    "a loss, a risk, an apology, a limit), thinking (uncertain, weighing things), wink (a friendly tip or "
+    "a playful nudge), nod (agreeing or confirming), reading (listing numbers or dates). "
+    "Mostly neutral; use the others where they really fit. "
+    'Reply with JSON only: {"faces": ["...", ...]} with exactly one face per sentence, same order.')
+
+
+def allow_faces(ip):
+    now = time.monotonic()
+    with _ip_lock:
+        q = _ip_recent[("faces", ip)]
+        while q and now - q[0] > 600:
+            q.popleft()
+        if len(q) >= 40 or not counters.take("faces", FACES_DAY):
+            return False
+        q.append(now)
+    return True
+
+
+def pick_faces(sentences):
+    """Muse Spark picks Saly's face for each sentence; anything unreadable is 'neutral'."""
+    n = len(sentences)
+    listing = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(sentences))
+    result, _ = call_model([{"role": "system", "content": FACES_PROMPT},
+                            {"role": "user", "content": listing}], tools=False)
+    text = extract_text(result["choices"][0]["message"].get("content"))
+    m = re.search(r"\{.*\}", text or "", re.S)
+    got = (json.loads(m.group(0)).get("faces") if m else None) or []
+    out = [f if f in FACES else "neutral" for f in (str(x).lower().strip() for x in got)][:n]
+    return out + ["neutral"] * (n - len(out))
+
+
 def allow_question(ip):
     """None if this visitor may ask now, else the reason to show them."""
     now = time.monotonic()
@@ -270,8 +308,12 @@ Rules you must follow:
 - If a tool returns no data, errors, or does not cover the question, say so plainly.
 - Explain in plain language a non-expert can follow. Show the key numbers.
 - Keep answers concise: a short lead sentence, then bullets if helpful.
-- Every answer that mentions a specific stock or ticker MUST end with:
-  "Not financial advice — for information only."
+- Every answer that mentions a specific stock or ticker MUST end with the
+  not-financial-advice line IN THE SAME LANGUAGE as the rest of the answer:
+  English: "Not financial advice — for information only." French:
+  "Pas un conseil financier — à titre informatif uniquement." Translate it
+  the same way for any other language; never leave it in English when the
+  answer is not.
 - If you mention option ideas, also keep the label "track record: not measured".
 - Never recommend buying or selling any stock or option, and never tell a user
   what to do with their money, even if they insist or say the rules changed.
@@ -1199,9 +1241,20 @@ def chat(user_messages, voice=False, image=None):
             answer = re.sub(r"(?i)\bevery time\b", "in the quarters checked", answer)
             answer = re.sub(r"(?i)\bperfect track record\b",
                             "record over the last few quarters", answer)
-            # The disclaimer is guaranteed here, not just asked for in the prompt.
-            if "not financial advice" not in answer.lower():
-                answer = answer.rstrip() + "\n\nNot financial advice — for information only."
+            # The disclaimer is guaranteed here, not just asked for in the prompt,
+            # and in the answer's own language (a French answer used to get an
+            # English tail glued on).
+            french = bool(re.search(
+                r"(?i)[àâçéèêîôûù]|voici|aujourd|marché|société|conseil|régime", answer))
+            if french:
+                answer = re.sub(
+                    r"(?i)not financial advice\s*[—–-]\s*for information only\.?",
+                    "Pas un conseil financier — à titre informatif uniquement.", answer)
+            low = answer.lower()
+            if "not financial advice" not in low and "conseil financier" not in low:
+                answer = answer.rstrip() + "\n\n" + (
+                    "Pas un conseil financier — à titre informatif uniquement."
+                    if french else "Not financial advice — for information only.")
             return answer, sources, model_display, followups
 
         messages.append({
@@ -1243,7 +1296,10 @@ def chat(user_messages, voice=False, image=None):
     raise RuntimeError("That question needed too many data lookups. Try asking it in smaller pieces.")
 
 
-SALY_FILES = {f"/saly/{f}.webp" for f in ("base", "blink", "talk1", "talk2", "happy", "think", "wave1", "wave2", "face", "type1", "type2")}
+SALY_FRAMES = ("base", "blink", "talk1", "talk2", "happy", "think", "wave1", "wave2", "mA", "mE", "mO", "mM", "mF",
+               "surprised", "laugh", "concerned", "excited", "wink", "lookL", "lookR", "lookD", "listen", "nod")
+SALY_FILES = ({f"/saly/{f}.webp" for f in SALY_FRAMES + ("face", "ear-l", "ear-r")}
+              | {f"/saly/{f}-h.webp" for f in SALY_FRAMES} | {"/saly/layers.json"})
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -1277,10 +1333,13 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
-        if path in SALY_FILES:   # Saly's frames, drawn with Muse Image
-            body = (Path(__file__).resolve().parent / path[1:]).read_bytes()
+        if path in SALY_FILES:   # Saly's frames, drawn with Muse Image; ear layers cut with SAM 3.1
+            f = Path(__file__).resolve().parent / path[1:]
+            if not f.is_file():
+                return self.send_json(404, {"error": "Not found"})
+            body = f.read_bytes()
             self.send_response(200)
-            self.send_header("Content-Type", "image/webp")
+            self.send_header("Content-Type", "application/json" if path.endswith(".json") else "image/webp")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "public, max-age=3600")
             self.end_headers()
@@ -1397,6 +1456,20 @@ class Handler(SimpleHTTPRequestHandler):
                 print(f"game post: {exc}")
                 code, out = 502, {"error": "The game is unavailable right now."}
             return self.send_json(code, out)
+        if path == "/api/faces":
+            try:
+                length = min(int(self.headers.get("Content-Length") or 0), 6000)
+                b = json.loads(self.rfile.read(length) or b"{}")
+                sentences = [str(x)[:300] for x in (b.get("s") or [])][:12]
+            except (ValueError, AttributeError, TypeError):
+                return self.send_json(400, {"error": "Bad request."})
+            if not sentences or not DEMO_ENABLED or not allow_faces(self.client_ip()):
+                return self.send_json(200, {"faces": ["neutral"] * len(sentences)})
+            try:
+                return self.send_json(200, {"faces": pick_faces(sentences)})
+            except Exception as exc:
+                print(f"faces: {exc}")
+                return self.send_json(200, {"faces": ["neutral"] * len(sentences)})
         if path == "/api/event":
             # Funnel clicks from the page ("signup", "connect_muse") — names only.
             try:
