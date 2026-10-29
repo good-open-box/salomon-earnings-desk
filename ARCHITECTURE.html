@@ -1,0 +1,70 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Salomon Earnings Desk: Architecture</title>
+<style>
+body{font-family:"DejaVu Sans",Arial,sans-serif;color:#0F172A;font-size:11pt;line-height:1.45;margin:0}
+h1{font-size:20pt;margin:0 0 4px}h2{font-size:13pt;margin:20px 0 6px;border-bottom:1px solid #CBD5E1;padding-bottom:3px}
+.sub{color:#475569;font-size:10pt;margin:0 0 10px}
+table{border-collapse:collapse;width:100%;font-size:9.5pt}th,td{border:1px solid #CBD5E1;padding:5px 7px;text-align:left;vertical-align:top}
+th{background:#EEF2F7}code{font-size:9pt;background:#EEF2F7;padding:0 3px}
+ol,ul{padding-left:20px;margin:4px 0}li{margin:2px 0}.note{color:#475569;font-size:9.5pt}
+@page{size:Letter;margin:16mm}
+</style></head><body>
+<h1>Salomon Earnings Desk: Architecture</h1>
+<p class="sub">Meta Global AI Developer Hackathon · Startup track · live at desk.slmn.trade · code: github.com/good-open-box/salomon-earnings-desk<br>
+Figures as of Oct 28, 2026, 8:30 PM ET. Refresh on submission day: the desk grades every hour.</p>
+
+<h2>What it is</h2>
+<p>A read-only earnings assistant for everyday investors. Its assistant is <b>Saly</b>. You type, talk, tap <b>Call Saly</b> for a hands-free call, or share a screenshot of a chart, and she answers in plain words from live market data. Its beat/miss calls are locked in a public ledger before each company reports and graded automatically on the real result, misses first. It never trades, never says buy or sell, and never touches anyone's account.</p>
+
+<h2>Meta models: what each one does</h2>
+<table>
+<tr><th>Model</th><th>Where it runs</th><th>Job in the demo</th></tr>
+<tr><td><b>Muse Spark Open</b> (open weights)</td><td>Hosted on Baseten (OpenAI-compatible API)</td><td>Main model. Every answer: calls 9 live data tools (earnings calendar, locked calls and grades, market data, filings links…) and writes the reply. Also reads screenshots visitors share (a chart or earnings page): says what the picture shows, then explains it with Salomon's data. Also writes the live welcome and the "What I got wrong" notes.</td></tr>
+<tr><td><b>Muse Spark 1.3</b></td><td>Meta Model API (api.meta.ai)</td><td>Automatic backup if the main model errors or times out. Capped per day.</td></tr>
+<tr><td><b>Muse Voice Transcribe 1.0</b></td><td>Meta Model API</td><td>Ask by voice, and Call Saly: the page detects when you stop talking, sends the clip, and the text becomes the question. The answer is read aloud by the browser.</td></tr>
+<tr><td><b>Muse Image 1.0</b></td><td>Meta Model API</td><td>One new background a day for the share card; the real scorecard numbers are drawn on top by the page, never by the image model. Also drew Saly: her look and each expression frame (blink, talking, happy, thinking, waving), made with image edits so she stays the same character.</td></tr>
+<tr><td><b>Muse Wonder</b></td><td>Muse Code (development only)</td><td>Wrote the first version of the app. It has no role at runtime.</td></tr>
+</table>
+<p class="note">Not used in the demo: SAM 3.1 and any on-device (Jetson) model.</p>
+
+<h2>How an answer is made</h2>
+<ol>
+<li>The visitor asks in plain words (typed, spoken, in a call, or with a screenshot attached).</li>
+<li>Muse Spark Open picks the data tools it needs. Locked calls and grades come from the ledger as stored; nothing is re-predicted at ask time.</li>
+<li>It writes the answer using only the returned figures, names the data source, and adds links to the company's SEC filings and Nasdaq earnings page.</li>
+<li>Server-side safety layer: buy/sell language and trading labels are removed, follow-up suggestions are filtered, the disclaimer is appended, jailbreaks are refused.</li>
+</ol>
+
+<h2>The ledger: locked, graded, proven</h2>
+<ul>
+<li><b>Lock:</b> twice a day, every company in Salomon's coverage reporting within 7 days gets its beat/miss call written to an append-only file. Each line is sha256-chained to the one before, so no line can be changed or removed without breaking the chain.</li>
+<li><b>Grade:</b> every hour, reported companies are graded. A beat means actual EPS at or above the Wall Street consensus estimate (Finnhub earnings calendar).</li>
+<li><b>Not counted:</b> when the estimate is $1 or more and the surprise is 50% or more, the two figures almost always measure different things. The grade is shown but not counted (American Tower, Oct 27).</li>
+<li><b>"What I got wrong":</b> each miss gets a short note written by Muse Spark Open. Every number in the note is checked against the data before it is saved; if any fails, a plain facts-only note is used instead.</li>
+<li><b>Outside proof:</b> each locked batch is stamped with OpenTimestamps (anchored in Bitcoin), and dated copies of the ledger are saved to the Internet Archive. The page's "Verify it yourself" box gives the files and steps.</li>
+</ul>
+<p><b>State on Oct 28, 8:30 PM ET:</b> 58 calls locked, 20 graded, 14 right (70%), 1 not counted. 5 batches stamped (batch 1 locked Oct 26, 5:26 PM, fingerprint <code>5599a10f3062</code>; batches 1–2 were stamped Oct 27, after they were locked, and the page says so; later batches are stamped as they lock). Early record: the sample is small and grows every report day.</p>
+
+<h2>You vs Salomon</h2>
+<p>Visitors pick Beat or Miss on the same locked calls before each report. Picks lock instantly, the crowd's split is shown only after you pick, and everyone is graded on the same results as the AI. Leaderboard needs a nickname and 3 graded picks. No money, no prizes.</p>
+
+<h2>Production</h2>
+<ul>
+<li>Fly.io app with a persistent volume for the game; own domain; always on.</li>
+<li>Limits: per-visitor and global daily caps (chat and screenshots), spoof-proof IP limits, concurrency cap, per-connection caps on picks and new players, nickname filter, 10-minute data cache, kill switch, capped backup model.</li>
+<li>About half a cent per answer; one welcome and one image a day shared by all visitors.</li>
+</ul>
+
+<h2>Built during the hackathon vs before</h2>
+<p><b>Built from Oct 26:</b> the whole desk app (Saly and her animation, chat, voice, Call Saly, screenshot reading, welcome, ledger panel, game, share cards, design, deploy), the frozen-calls ledger with grading, proofs, the not-counted rule and miss notes, the safety layer, and data-feed fixes found while building.<br>
+<b>Existed before:</b> Salomon AI's market data API and earnings prediction engine, the slmn.trade site and accounts, the Salomon connector for Muse.</p>
+
+<h2>Limits, stated plainly</h2>
+<ul>
+<li>The record is early (20 graded calls). Treat the percent as a start.</li>
+<li>Calls cover the companies Salomon follows, not every company that reports.</li>
+<li>The Salomon connector for Muse is early access, not generally available, and was built before the hackathon.</li>
+<li>Screenshot reading: up to 8 per visitor a day; pictures are not saved; Saly describes only what is visible and never repeats personal details such as account numbers.</li>
+<li>The earnings data comes from a third-party calendar; mismatches are excluded by rule, not by hand.</li>
+</ul>
+<p class="note">Team: Patrick Badobrey (founder, Salomon AI Inc.) · Nitin Rana (engineer). Not financial advice.</p>
+</body></html>
