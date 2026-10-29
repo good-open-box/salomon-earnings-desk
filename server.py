@@ -1243,7 +1243,7 @@ def chat(user_messages, voice=False, image=None):
     raise RuntimeError("That question needed too many data lookups. Try asking it in smaller pieces.")
 
 
-SALY_FILES = {f"/saly/{f}.webp" for f in ("base", "blink", "talk1", "talk2", "happy", "think", "wave1", "wave2", "face")}
+SALY_FILES = {f"/saly/{f}.webp" for f in ("base", "blink", "talk1", "talk2", "happy", "think", "wave1", "wave2", "face", "type1", "type2")}
 
 
 class Handler(SimpleHTTPRequestHandler):
