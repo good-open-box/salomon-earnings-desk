@@ -1036,7 +1036,7 @@ function onCallAudio(buf) {
   if (rms > thr) { call.heard = true; call.quiet = 0; if (call.state !== 'hearing') setCall('hearing', 'Go on…'); }
   else if (call.heard) call.quiet += secs;
   const elapsed = (Date.now() - call.started) / 1000;
-  if (call.heard && (call.quiet > 1.2 || elapsed > 15)) finishTurn();
+  if (call.heard && (call.quiet > 0.9 || elapsed > 15)) finishTurn();   // 0.9 s pause = done (was 1.2)
   else if (!call.heard && elapsed > 8) {
     call.idle++;
     if (call.idle >= 2) { setCall('speaking', 'Saly'); speakThen("I'll hang up for now. Talk soon.", endCall); }

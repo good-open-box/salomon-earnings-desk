@@ -188,7 +188,7 @@ def pick_faces(sentences):
     n = len(sentences)
     listing = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(sentences))
     result, _ = call_model([{"role": "system", "content": FACES_PROMPT},
-                            {"role": "user", "content": listing}], tools=False)
+                            {"role": "user", "content": listing}], tools=False, fast=True)
     text = extract_text(result["choices"][0]["message"].get("content"))
     m = re.search(r"\{.*\}", text or "", re.S)
     got = (json.loads(m.group(0)).get("faces") if m else None) or []
@@ -1018,7 +1018,7 @@ def fetch_salomon(name, symbol=""):
     return text
 
 
-def call_model(messages, tools=True):
+def call_model(messages, tools=True, fast=False):
     """One chat completion, Baseten first, api.meta.ai as fallback.
 
     Returns (result, model_display). Baseten runs Muse Spark
@@ -1028,8 +1028,9 @@ def call_model(messages, tools=True):
     """
     providers = [
         # name, base, model, key env, key file, display, timeout, extra payload
+        # fast (voice calls): think less. Oct 31 test: 7-9s -> ~3s, same answers.
         ("Baseten", BASETEN_BASE, BASETEN_MODEL, "BASETEN_API_KEY",
-         BASETEN_KEY_FILE, "Salomon AI", 45, {}),
+         BASETEN_KEY_FILE, "Salomon AI", 45, {"reasoning_effort": "low"} if fast else {}),
         # Muse Spark is a reasoning model: it spends ~150 hidden tokens
         # even on trivial replies, and reasoning counts against max_tokens;
         # 1600 ran out on the 74-company earnings list, hence 4000 + low.
@@ -1189,6 +1190,7 @@ def _make_greeting():
 VOICE_CALL_NOTE = ("This is a live voice call: your answer is read aloud. Answer in 2 to 4 "
                    "short spoken sentences, no lists, no markdown, no links, no tickers spelled "
                    "letter by letter when the company name is known. Round money to cents. "
+                   "Salomon is a company: say 'Salomon' or 'it', never 'he'. "
                    "Still end with the Follow-ups line.")
 
 
@@ -1222,7 +1224,7 @@ def chat(user_messages, voice=False, image=None):
     sources = []
     model_display = ""
     for _ in range(5):
-        result, model_display = call_model(messages)
+        result, model_display = call_model(messages, fast=voice)
         choices = result.get("choices") or []
         if not choices:
             raise RuntimeError("The assistant returned an empty response. Please try again.")
