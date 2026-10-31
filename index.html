@@ -148,24 +148,22 @@
   .callscreen[data-state="thinking"] .orb::before{background:radial-gradient(circle,rgba(56,189,248,.35),rgba(56,189,248,0) 70%)}
   @keyframes breathe{50%{transform:scale(1.012) translateY(-2px)}}
   @keyframes look{
-    0%,100%{transform:translateX(0) rotate(0)}
-    16%{transform:translateX(-12px) rotate(-9deg)}
-    34%{transform:translateX(-12px) rotate(-9deg)}
-    50%{transform:translateX(0) rotate(0)}
-    66%{transform:translateX(12px) rotate(9deg)}
-    84%{transform:translateX(12px) rotate(9deg)}
+    0%,100%{transform:translate(0,0) rotate(0deg) scale(1)}
+    25%{transform:translate(-2px,-1px) rotate(-1.2deg) scale(1.012)}
+    45%{transform:translate(-2px,-1px) rotate(-1.2deg) scale(1.012)}
+    62%{transform:translate(0,-2px) rotate(0deg) scale(1.018)}
+    82%{transform:translate(2px,-1px) rotate(1.2deg) scale(1.012)}
   }
   @keyframes look-wide{
-    0%,100%{transform:translateX(0) rotate(0)}
-    16%{transform:translateX(-36px) rotate(-8deg)}
-    34%{transform:translateX(-36px) rotate(-8deg)}
-    50%{transform:translateX(0) rotate(0)}
-    66%{transform:translateX(36px) rotate(8deg)}
-    84%{transform:translateX(36px) rotate(8deg)}
+    0%,100%{transform:translate(0,0) rotate(0deg) scale(1)}
+    25%{transform:translate(-4px,-2px) rotate(-1.6deg) scale(1.015)}
+    45%{transform:translate(-4px,-2px) rotate(-1.6deg) scale(1.015)}
+    62%{transform:translate(0,-3px) rotate(0deg) scale(1.022)}
+    82%{transform:translate(4px,-2px) rotate(1.6deg) scale(1.015)}
   }
   @keyframes lean{from{transform:scale(1.03) rotate(-1.5deg)}to{transform:scale(1.05) rotate(1.5deg)}}
   @keyframes tilt{0%,100%{transform:rotate(0)}50%{transform:rotate(-3deg)}}
-  @keyframes talk{from{transform:translateY(0) scale(1)}to{transform:translateY(-6px) scale(1.02)}}
+  @keyframes talk{from{transform:translateY(0) scale(1)}to{transform:translateY(-3px) scale(1.012)}}
   @keyframes hop{0%{transform:translateY(0)}35%{transform:translateY(-7px)}70%{transform:translateY(1px)}100%{transform:translateY(0)}}
   @media (prefers-reduced-motion:reduce){.saly,.row.bot .av{animation:none!important}}
   .call-state{margin:0;font-size:20px;font-weight:800}
