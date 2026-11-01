@@ -695,6 +695,13 @@ function reactionFor(text) {
   const hit = R.find(([rx]) => rx.test(t));
   return hit ? hit[1] : '';
 }
+// A bare "ok" / "got it" / "thanks" gets only the tap, no reply (unless her last message asked something).
+const ACK_RX = /^\s*(ok(ay)?|k|cool|nice|great|perfect|got it|sounds good|noted|alright|all good|done|thanks?( you)?( so much)?( saly)?|thx|ty|merci|👍|🙏|❤️)[\s.!]*$/i;
+function ackOnly(q) {
+  if (!ACK_RX.test(q)) return false;
+  const last = [...history].reverse().find(m => m.role === 'assistant');
+  return !(last && String(last.content || '').trim().endsWith('?'));
+}
 function tapback(msgEl, text) {
   const e = reactionFor(text);
   if (!e || !msgEl) return;
@@ -1182,6 +1189,12 @@ form.addEventListener('submit', async (e) => {
   const q = input.value.trim() || (image ? 'What does this screenshot show, and what does it mean?' : '');
   if (!q) return;
   input.value = '';
+  if (!image && ackOnly(q)) {
+    const arow = addRow('user'); arow.textContent = q;
+    history.push({role: 'user', content: q});
+    tapback(arow, q); salySet('happy'); setTimeout(() => salySet('idle'), 1400);
+    return;
+  }
   const urow = addRow('user');
   if (image) { const sh = el('img', 'shot'); sh.src = image; sh.alt = 'Your screenshot'; urow.appendChild(sh); }
   urow.appendChild(document.createTextNode(q));
