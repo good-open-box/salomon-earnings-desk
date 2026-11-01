@@ -214,6 +214,11 @@
   #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:18px;overflow-y:auto;max-height:62vh;min-height:300px;scroll-behavior:smooth}
   .row{display:flex;gap:10px;align-items:flex-start;max-width:100%}
   .row.user{justify-content:flex-end}
+  .row.user .msg{position:relative}
+  .tapback{position:absolute;left:-12px;bottom:-14px;font-size:18px;line-height:1;padding:4px 6px;border-radius:99px;
+    background:var(--card2);border:1px solid var(--line);box-shadow:0 4px 12px rgba(0,0,0,.25);animation:tapback .45s cubic-bezier(.3,1.6,.5,1)}
+  @keyframes tapback{from{transform:scale(0) rotate(-20deg);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.tapback{animation:none}}
   .av{width:44px;height:44px;flex:0 0 auto;overflow:hidden;padding:0}
   .av img{width:100%;height:100%;object-fit:cover;display:block}
   .msg{padding:12px 15px;border-radius:16px;line-height:1.6;overflow-wrap:anywhere;font-size:15.5px;max-width:min(640px,88%)}
@@ -674,6 +679,29 @@ mountSaly(document.getElementById('saly-head'));
 mountSaly(document.getElementById('saly-call'));
 salyTick();
 
+// Tap-back like Messages: Saly reacts to clear moments (thanks, a joke, good news). Hard personal
+// news gets a care heart, never a playful one; a market question with a sad word gets nothing.
+function reactionFor(text) {
+  const t = String(text || '').slice(0, 400);
+  if (!t) return '';
+  if (/\b(lost|losing|loss|crash\w*|sad|sorry|sick|died|stressed|worried|scared|rough|tough)\b/i.test(t))
+    return /\b(i|i'm|im|my|me|we|our)\b/i.test(t) && !t.includes('?') ? '❤️‍🩹' : '';
+  const R = [[/\b(lol|lmao|haha\w*|hehe|funny)\b|😂|🤣/i, '😂'],
+    [/\b(i|we) (made|won|got|hit|closed|booked)\b.*(\b(money|profit|green|target|job|deal)\b|\$\d)|\b(great|good|amazing) news\b|\bnailed it\b|🎉/i, '🎉'],
+    [/\b(love you|you('re| are) (the best|amazing|awesome))\b|🥰|😍/i, '🥰'],
+    [/\b(thank(s| you)?|thx|ty|merci|gracias|appreciate (it|you|that))\b|🙏/i, '❤️'],
+    [/^\s*(good morning|gm)\b/i, '☀️'], [/^\s*(good night|gn)\b/i, '🌙'],
+    [/^\s*(ok(ay)?|cool|nice|great|perfect|got it|sounds good|done|all set|it works|(it'?s|its) working)[\s.!]*$/i, '👍']];
+  const hit = R.find(([rx]) => rx.test(t));
+  return hit ? hit[1] : '';
+}
+function tapback(msgEl, text) {
+  const e = reactionFor(text);
+  if (!e || !msgEl) return;
+  const b = el('span', 'tapback', e); b.title = 'Saly reacted';
+  msgEl.appendChild(b);
+}
+
 function addRow(who) {
   const row = el('div', 'row ' + who);
   const msg = el('div', 'msg');
@@ -1055,7 +1083,7 @@ async function finishTurn() {
     const q = (t.text || '').trim();
     if (!q) { setCall('speaking', 'Saly'); speakThen("Sorry, I didn't catch that. Could you say it again?", listen); return; }
     document.getElementById('call-you').textContent = '“' + q + '”';
-    addRow('user').textContent = q;
+    const vrow = addRow('user'); vrow.textContent = q;
     history.push({role: 'user', content: q});
     const r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                        body: JSON.stringify({messages: history, voice: true})});
@@ -1063,6 +1091,7 @@ async function finishTurn() {
     if (!r.ok) throw new Error(d.error || 'chat');
     history.push({role: 'assistant', content: d.answer});
     renderAnswer(addRow('bot'), d.answer);
+    tapback(vrow, q);
     if (!call) return;
     document.getElementById('call-bot').textContent = plain(d.answer);
     call.turns++;
@@ -1172,6 +1201,7 @@ form.addEventListener('submit', async (e) => {
     history.push({role: 'assistant', content: d.answer});
     wait.textContent = '';
     statusEl.textContent = '';
+    tapback(urow, q);
     if (speakOn || lastAskWasVoice) speak(d.answer);
     lastAskWasVoice = false;
     await typeOut(wait, d.answer);
